@@ -5,10 +5,14 @@ import sys
 import cmd
 from crypto import UserKeyLoader
 from util import ccolor
+from crypto import PubKeysLookup
 
 class CmdClient(cmd.Cmd):
 
     def init(self, user):
+        user_count = PubKeysLookup.load()
+        print('Loaded Trusted Directory of %d Public Keys.' % user_count)
+
         self.prompt = ccolor.wrap(user) + '> '
         pri_key = UserKeyLoader.pri_key(user)
         pub_key = UserKeyLoader.pub_key(user)

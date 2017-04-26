@@ -1,4 +1,8 @@
+import os
+import json
 from wrap_openssl import OpenSSLWrapper
+from crypto import UserKeyLoader
+from clouds import DropboxCloud
 
 class AdminGroupManagement:
 
@@ -31,4 +35,4 @@ class AdminGroupManagement:
             # put also group key block
             k = self.crypt.broadcast_encrypt(self.aes_key, self.members)
             ks = self.crypt.rsa_sign(k, self.admin_pri_key)
-            DropboxCloud.put_overwrite_b(self.name + ".key.manifest.txt", k)
+            DropboxCloud.put_overwrite_b(self.name + ".key.manifest.txt", ks)
