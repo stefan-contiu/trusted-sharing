@@ -1,0 +1,17 @@
+INSTALLING THE PBC_BCE LIBRARY
+==============================
+
+First install the PBC library:
+
+    http://crypto.stanford.edu/pbc/
+
+The PBC library needs the GMP library:
+
+    http://www.swox.com/gmp/
+
+To compile:
+
+    gcc testbce.c bce.c -lgmp -lpbc
+
+You may need to add -L or -I flags depending on where GMP and PBC are
+installed.

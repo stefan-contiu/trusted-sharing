@@ -1,0 +1,9 @@
+PBC_bce broadcast encryption library. See COPYING for license.
+
+Changes between PBC_bce version 0.0.1 and PBC version 0.0.0
+
+* Fixed some comments
+
+Changes between PBC_bce version 0.0.0 and PBC version 0.3.17
+
+* Minor fixes reflecting changes in PBC 0.4.0.

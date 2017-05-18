@@ -45,6 +45,17 @@ class AONT:
         # generate a random key
         # alter the whole s by rand key
         #
+
+
+        #E1(K, XXXXXXXXXXXXXXXXXXXXXXX)
+        #E2(K, Y)
+        #H(XXXXXXX) ^ H(Y) ^ K
+
+
+        #BE(K), FFFFFFFFFFFFFFFFFFF
+
+
+
         pass
 
     @staticmethod

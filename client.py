@@ -1,11 +1,11 @@
-from user_api import User
-from group_api import AdminGroupManagement
-from timeit import default_timer as timer
 import sys
 import cmd
-from crypto import UserKeyLoader
+
+from user_api import User
+from group_api import AdminGroupManagement
+from crypto import UserKeyLoader, PubKeysLookup
 from util import ccolor
-from crypto import PubKeysLookup
+from timeit import default_timer as timer
 
 class CmdClient(cmd.Cmd):
 

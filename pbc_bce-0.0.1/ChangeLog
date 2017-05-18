@@ -1,0 +1,11 @@
+commit 03e2a5aecd6a0744e3893b3ef51f4bbc3904fd3c
+Author: stefan-contiu <stefan.contiu@gmail.com>
+Date:   Wed Apr 26 12:15:02 2017 +0200
+
+    Added pub key lookup
+
+commit e4409071dd67a9f51002c09aa07403bf6128dec7
+Author: stefan-contiu <stefan.contiu@gmail.com>
+Date:   Wed Apr 26 11:37:14 2017 +0200
+
+    Linked local folder to repository

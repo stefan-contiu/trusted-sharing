@@ -1,0 +1,10 @@
+THE PBC_BCE LIBARY
+
+The PBC_bce library is a C library implementing the Boneh-Gentry-Waters
+broadcast encryption scheme. PBC_bce requires the PBC library.
+
+The PBC library is released under the GNU General Public License. See the
+file COPYING for details.
+
+------------------------------------------------------------------------------
+Ben Lynn <blynn@cs.stanford.edu>
