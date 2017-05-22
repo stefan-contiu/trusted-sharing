@@ -1,42 +1,44 @@
 from ctypes import cdll
 from ctypes import c_int, c_char_p, byref, create_string_buffer, POINTER
+from crypto import PKI
+from wrap_openssl import OpenSSLWrapper
 
 lib = cdll.LoadLibrary('./pbc_bce-0.0.1/bdcst.so')
 
 class BroadcastEncryption(object):
     def __init__(self):
-        pass
+        self.openssl = OpenSSLWrapper()
 
     def setup(self):
         lib.one_time_init()
 
-    def encrypt(self):
-        users = (c_int*3)()
-        users[0] = 1
-        users[1] = 2
-        users[2] = 3
+    def encrypt(self, users):
+        u = (c_int * len(users))()
+        for i in range(len(users)):
+            u[i] = PKI.get_index(users[i])
 
-        k = create_string_buffer(256)
-        c = create_string_buffer(256)
-        k_len = (c_int*1)()
-        c_len = (c_int*1)()
+        k = create_string_buffer(512)
+        c = create_string_buffer(512)
+        k_len = (c_int * 1)()
+        c_len = (c_int * 1)()
 
-        lib.broadcast_encrypt_group(users, 3, k, k_len, c, c_len)
+        lib.broadcast_encrypt_group(u, len(users), k, k_len, c, c_len)
 
-        kb = bytearray(k)
-        #cb = bytearray(c)
-        print(kb[:k_len[0]])
+        kb = bytes(k)[:k_len[0]]
+        cb = bytes(c)[:c_len[0]]
 
-        #print(cb)
+        return (self.openssl.sha256(kb), cb)
 
-    def decrypt(self):
+    def decrypt(self, users, pri_key, c):
         pass
 
 def main():
   b = BroadcastEncryption()
   #b.setup()
-  b.encrypt()
-  print("Check timestamp !")
+  # alice, bob, eve, steve
+  u = ["alice", "steve"]
+  (k, c) = b.encrypt(u)
+  b.decrypt(u, bdcst_pri_key, )
 
 if __name__ == "__main__":
     print("Calling into C code")

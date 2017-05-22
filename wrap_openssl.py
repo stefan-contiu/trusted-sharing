@@ -2,7 +2,8 @@
 import os
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends.openssl import backend as openssl
-from cryptography.hazmat.primitives.hashes import SHA512
+from cryptography.hazmat.primitives.hashes import SHA256, SHA512
+from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric.padding import PSS, OAEP, MGF1
 
 
@@ -48,11 +49,11 @@ class OpenSSLWrapper:
         verifier.verify()
         return s
 
-    def broadcast_encrypt(self, s, users):
-        return s
+    def sha256(self, msg):
+        digest = hashes.Hash(SHA256(), backend=OpenSSLWrapper.backend)
+        digest.update(msg)
+        return digest.finalize()
 
-    def broadcast_decrypt(self, s, user):
-        return s
 
 class CryptoOps:
 

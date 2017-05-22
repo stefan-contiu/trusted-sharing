@@ -2,6 +2,7 @@ import os
 from cryptography.hazmat.backends.openssl import backend as openssl
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives.serialization import *
+from collections import OrderedDict
 
 
 class UserKeyLoader:
@@ -22,26 +23,36 @@ class UserKeyLoader:
         pub_key = load_pem_public_key(key_data, backend=openssl)
         return pub_key
 
-class PubKeysLookup:
+class PKI:
 
     path = 'rsa_keys/'
-    keys = {}
+    keys = OrderedDict()
 
     @staticmethod
     def load():
-        for file in os.listdir(PubKeysLookup.path):
+        for file in os.listdir(PKI.path):
             if file.endswith(".pub"):
                 user = os.path.splitext(file)[0]
-                PubKeysLookup.keys[user] = UserKeyLoader.pub_key(user)
-        return len(PubKeysLookup.keys.keys())
+                PKI.keys[user] = UserKeyLoader.pub_key(user)
+        return len(PKI.keys.keys())
 
+    @staticmethod
     def get(user):
+        if not len(PKI.keys):
+            PKI.load()
         return PubKeysLookup.k[user]
+
+    @staticmethod
+    def get_index(user):
+        if not len(PKI.keys):
+            PKI.load()
+        return list(PKI.keys.keys()).index(user) + 1
 
 class AONT:
 
     @staticmethod
     def transform(self, s):
+        pass
         # generate a random key
         # alter the whole s by rand key
         #
@@ -66,6 +77,8 @@ class BroadcastEncryption:
 
     @staticmethod
     def encrypt(self, plaintext, users_keys):
+
+
         return plaintext
 
     @staticmethod
