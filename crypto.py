@@ -72,15 +72,3 @@ class AONT:
     @staticmethod
     def combine(self, package, stub):
         pass
-
-class BroadcastEncryption:
-
-    @staticmethod
-    def encrypt(self, plaintext, users_keys):
-
-
-        return plaintext
-
-    @staticmethod
-    def decrypt(self, plaintext, user_key):
-        return plaintext

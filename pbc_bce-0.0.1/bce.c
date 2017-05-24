@@ -70,8 +70,7 @@ void FreePK(priv_key_t key)
   return;
 }
 
-
-static inline void out(element_t elem, FILE *myfile)
+void out(element_t elem, FILE *myfile)
 {
   int sz = element_length_in_bytes(elem);
   fwrite(&sz, 4, 1, myfile);
@@ -82,7 +81,7 @@ static inline void out(element_t elem, FILE *myfile)
   pbc_free(data);
 }
 
-static inline void in(element_t elem, FILE *myfile) {
+void in(element_t elem, FILE *myfile) {
   int sz;
   fread(&sz, 4, 1, myfile);
   unsigned char* data = pbc_malloc(sz);
@@ -715,7 +714,6 @@ void BroadcastKEM_using_product(global_broadcast_params_t gbp,
         return;
     }
 
-    /** 对应论文加密部分第2步，选取随机数t */
     element_t t;
     element_init_Zr(t, gbp->pairing);
     element_random(t);
@@ -723,6 +721,12 @@ void BroadcastKEM_using_product(global_broadcast_params_t gbp,
     element_init(key, gbp->pairing->GT);
     element_init(myct->C0, gbp->pairing->G2);
     element_init(myct->C1, gbp->pairing->G1);
+
+
+    //COMPUTE K
+    // old way to do the computation:
+    // bilinear_map(key, gbp->gs[gbp->num_users-1], gbp->hs[0], gbp->pairing);
+
 
     /** COMPUTE K, 结果存放在key中，对应论文中加密部分，K = e(gB+1, g)^t = e(gB, g1)^t，K在服务器端用于加密实际广播的消息 */
     element_pairing(key, gbp->gs[gbp->num_users-1], gbp->hs[0]);
@@ -872,7 +876,6 @@ void Gen_decr_prod_from_bitvec(global_broadcast_params_t gbp,
   int main_index = 1;
   int i,j;
   int already_set = 0;
-
 
   if(!gbp) {
     printf("ACK!  You gave me no broadcast params!  I die.\n");

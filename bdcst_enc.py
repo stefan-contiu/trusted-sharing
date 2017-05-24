@@ -29,8 +29,12 @@ class BroadcastEncryption(object):
 
         return (self.openssl.sha256(kb), cb)
 
-    def decrypt(self, users, pri_key, c):
-        pass
+    def decrypt(self, users, pri_key_file, c, k):
+        u = (c_int * len(users))()
+        for i in range(len(users)):
+            u[i] = PKI.get_index(users[i])
+
+
 
 def main():
   b = BroadcastEncryption()
