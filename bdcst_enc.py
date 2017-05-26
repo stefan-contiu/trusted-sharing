@@ -23,18 +23,29 @@ class BroadcastEncryption(object):
         c_len = (c_int * 1)()
 
         lib.broadcast_encrypt_group(u, len(users), k, k_len, c, c_len)
-
         kb = bytes(k)[:k_len[0]]
         cb = bytes(c)[:c_len[0]]
 
         return (self.openssl.sha256(kb), cb)
 
-    def decrypt(self, users, pri_key_file, c, k):
+    def decrypt(self, users, current_user, c):
         u = (c_int * len(users))()
         for i in range(len(users)):
             u[i] = PKI.get_index(users[i])
 
+        pri_key_file_name = 'keys_32/user_' + str(PKI.get_index(current_user)) + ".key"
+        p = create_string_buffer(bytes(pri_key_file_name, 'utf-8'))
+        k = create_string_buffer(512)
+        k_len = (c_int * 1)()
 
+        csb = create_string_buffer(c)
+        
+        print(csb)
+        lib.broadcast_decrypt_group(u, len(users), p,
+            csb, len(c), k, k_len)
+
+        kb = bytes(k)[:k_len[0]]
+        return self.openssl.sha256(kb)
 
 def main():
   b = BroadcastEncryption()
@@ -42,7 +53,9 @@ def main():
   # alice, bob, eve, steve
   u = ["alice", "steve"]
   (k, c) = b.encrypt(u)
-  b.decrypt(u, bdcst_pri_key, )
+  print(k)
+  kd = b.decrypt(u, "alice", c)
+  print(kd)
 
 if __name__ == "__main__":
     print("Calling into C code")

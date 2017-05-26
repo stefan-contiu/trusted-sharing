@@ -84,8 +84,10 @@ void out(element_t elem, FILE *myfile)
 void in(element_t elem, FILE *myfile) {
   int sz;
   fread(&sz, 4, 1, myfile);
+
   unsigned char* data = pbc_malloc(sz);
   fread(data, sz, 1, myfile);
+
   element_from_bytes(elem, data);
   pbc_free(data);
 }
@@ -147,7 +149,8 @@ void LoadPrivKey(char *keyFileName, priv_key_t *mykey,
   }
   FILE *keyf = fopen(keyFileName, "r");
   if(!keyf) {
-    printf("ACK! couldn't write to file system.  I die\n");
+    printf("File not found : %s\n", keyFileName);
+    printf("ACK! couldn't read from file system.  I die\n");
     return;
   }
 

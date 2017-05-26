@@ -121,6 +121,10 @@ int broadcast_encrypt_group(
   FILE* stream = open_memstream(&bp, &size);
   out(generated_ct->C0, stream);
   out(generated_ct->C1, stream);
+  printf("Encryption generated ciphertexts : \n");
+  element_out_str(stdout, 0, generated_ct->C0);
+  element_out_str(stdout, 0, generated_ct->C1);
+  printf("End Encryption generated ciphertexts : \n");
   fclose(stream);
   (*cipher_length) = (int)size;
   memcpy(cipher, bp, size);
@@ -129,7 +133,7 @@ int broadcast_encrypt_group(
 int broadcast_decrypt_group(
   int* users_index, int users_count,
   char* user_private_key_file,
-  char* cipher, size_t* cipher_length,
+  char* cipher, size_t cipher_length,
   unsigned char* sym_key, int* sym_key_length)
 {
     // set up the system
@@ -147,10 +151,40 @@ int broadcast_decrypt_group(
     ct_t deserialized_cipher = (ct_t) pbc_malloc(sizeof(struct ciphertext_s));
     element_init(deserialized_cipher->C0, gbs->pairing->G2);
     element_init(deserialized_cipher->C1, gbs->pairing->G1);
-    FILE* stream = open_memstream(&cipher, cipher_length);
+
+
+    char local_buff[512];
+    printf("Memory copied : %d\n", cipher_length);
+//
+  strcpy(local_buff, cipher);
+    memcpy(local_buff, cipher, cipher_length);
+    //printf("local buff %s\n", local_buff);
+
+
+    //FILE* stream = open_memstream(&cipher, cipher_length);
+    FILE* stream = fmemopen(local_buff, strlen(local_buff), "r");
+        //*cipher_length, "r");
+    if (stream == NULL)
+    {
+        printf("ERROR : Invalid deserialization stream for the cipher\n");
+        return -1;
+    }
+    printf("starting desearialization, be afraid : \n");
     in(deserialized_cipher->C0, stream);
     in(deserialized_cipher->C1, stream);
+    printf("deserialization passed fine, here are the chips: \n");
+
+    element_out_str(stdout, 0, deserialized_cipher->C0);
+    element_out_str(stdout, 0, deserialized_cipher->C1);
+
+    if (stream == NULL)
+    {
+        printf("ERROR : Invalid deserialization stream for the cipher\n");
+        return -1;
+    }
     fclose(stream);
+    printf("3 \n");
+
 
     // decrypt the symmetric key
     element_t decrypted_key;
