@@ -19,8 +19,8 @@
 
 /* **********************************************************
    PRIVATE KEY STRUCT
-   This struct stores a single users' group elements and 
-   their private key.  It also contains the recipients 
+   This struct stores a single users' group elements and
+   their private key.  It also contains the recipients
    currently in their product (a bit-vector representation),
    their decryption product (excluding their group element),
    and their index number.
@@ -73,7 +73,7 @@ typedef struct ciphertext_s {
 }* ct_t;
 
 /* **********************************************************
-   These functions free the memory associated with various 
+   These functions free the memory associated with various
    structures.  Note that the pointer you pass in will not
    be freed--you must free it manually to prevent freeing
    stack memory.
@@ -90,14 +90,14 @@ void FreePK(priv_key_t key);
    the gs, the hs, and their inverses.  Chooses random alpha
    for the exponent.  num_users must be a multiple of 8.
 *********************************************************  */
-void Setup_global_broadcast_params(global_broadcast_params_t *gbp, 
+void Setup_global_broadcast_params(global_broadcast_params_t *gbp,
 				   int num_users, char *pairFileName);
 
 /* **********************************************************
    Stores the global broadcast system parameters to a file.
    WARNING: FILE WILL BE LARGE for large numbers of users
 *********************************************************  */
-void StoreParams(char *systemFileName, 
+void StoreParams(char *systemFileName,
 		 global_broadcast_params_t gbp,
 		 broadcast_system_t sys);
 
@@ -129,14 +129,14 @@ void LoadPrivKey(char *keyFileName, priv_key_t *mykey,
    Sets up one instance of a broadcast system, generating
    system specific global public and private keys.
 *********************************************************  */
-void Gen_broadcast_system(global_broadcast_params_t gbp, 
+void Gen_broadcast_system(global_broadcast_params_t gbp,
 			  broadcast_system_t *sys);
 
 
 /* **********************************************************
    This function gets the private key for a user at index i.
 *********************************************************  */
-void Get_priv_key(global_broadcast_params_t gbp, 
+void Get_priv_key(global_broadcast_params_t gbp,
 		  broadcast_system_t sys,
 		  int i, priv_key_t mykey);
 
@@ -146,17 +146,17 @@ void Get_priv_key(global_broadcast_params_t gbp,
    a bit vector representing the users who should be able
    to decrypt the message.
 *********************************************************  */
-void Gen_encr_prod_from_bitvec(global_broadcast_params_t gbp, 
+void Gen_encr_prod_from_bitvec(global_broadcast_params_t gbp,
 			       broadcast_system_t sys, char *recip);
 
 
 /* **********************************************************
    This function generates the encryption product from
-   an array of indicies corresponding to the users who 
+   an array of indicies corresponding to the users who
    should be able to decrypt the message.  You must
    pass in the correct array size.
 *********************************************************  */
-void Gen_encr_prod_from_indicies(global_broadcast_params_t gbp, 
+void Gen_encr_prod_from_indicies(global_broadcast_params_t gbp,
 				 broadcast_system_t sys,
 				 int *in_recip, int num_recip);
 
@@ -166,35 +166,35 @@ void Gen_encr_prod_from_indicies(global_broadcast_params_t gbp,
    first by removing the N_rems elements in the rems array
    and then by adding the N_adds elements in the adds array.
 *********************************************************  */
-void Change_encr_prod_indicies(global_broadcast_params_t gbp, 
+void Change_encr_prod_indicies(global_broadcast_params_t gbp,
 			       broadcast_system_t sys,
-			       int *adds, int N_adds, 
+			       int *adds, int N_adds,
 			       int *rems, int N_rems);
 
 
 /* **********************************************************
    This function generates the decryption product from
    a bit vector representing the users who should be able
-   to decrypt the message.  The product gets stored into 
+   to decrypt the message.  The product gets stored into
    mykey.  Group element corresponding to receiver is not
    included.
 *********************************************************  */
-void Gen_decr_prod_from_bitvec(global_broadcast_params_t gbp, 
-			       int receiver, 
+void Gen_decr_prod_from_bitvec(global_broadcast_params_t gbp,
+			       int receiver,
 			       char *recip, priv_key_t mykey);
 
 
 
 /* **********************************************************
    This function generates the decryption product from
-   an array of indicies corresponding to the users who 
+   an array of indicies corresponding to the users who
    should be able to decrypt the message.  You must
-   pass in the correct array size.  The product gets stored 
-   into mykey.  Group element corresponding to receiver is 
+   pass in the correct array size.  The product gets stored
+   into mykey.  Group element corresponding to receiver is
    not included.
 *********************************************************  */
-void Gen_decr_prod_from_indicies(global_broadcast_params_t gbp, 
-				 int receiver, int *in_recip, 
+void Gen_decr_prod_from_indicies(global_broadcast_params_t gbp,
+				 int receiver, int *in_recip,
 				 int num_recip, priv_key_t mykey);
 
 
@@ -202,13 +202,13 @@ void Gen_decr_prod_from_indicies(global_broadcast_params_t gbp,
    This function changes the decryption product of the user
    first by removing the N_rems elements in the rems array
    and then by adding the N_adds elements in the adds array.
-   You must pass in the correct array size.  The product gets 
-   stored into mykey.  Group element corresponding to receiver 
+   You must pass in the correct array size.  The product gets
+   stored into mykey.  Group element corresponding to receiver
    is not included.
 *********************************************************  */
-void Change_decr_prod_indicies(global_broadcast_params_t gbp, 
-			       int receiver, 
-			       int *adds, int N_adds, 
+void Change_decr_prod_indicies(global_broadcast_params_t gbp,
+			       int receiver,
+			       int *adds, int N_adds,
 			       int *rems, int N_rems, priv_key_t mykey);
 
 
@@ -225,7 +225,7 @@ void PrintBitString(char *bs, int length);
    This function generates a broadcast key and a cipher-text
    header, once the encryption product has been calculated.
 *********************************************************  */
-void BroadcastKEM_using_product(global_broadcast_params_t gbp, 
+void BroadcastKEM_using_product(global_broadcast_params_t gbp,
 				broadcast_system_t sys,
 				ct_t myct, element_t key);
 
@@ -236,7 +236,7 @@ void BroadcastKEM_using_product(global_broadcast_params_t gbp,
    BroadcastKEM-using-product routines.  Just a wrapper.
 *********************************************************  */
 void BroadcastKEM_using_bitvec(global_broadcast_params_t gbp,
-			       broadcast_system_t sys, 
+			       broadcast_system_t sys,
 			       char *recip, ct_t myct, element_t key);
 
 
@@ -247,7 +247,7 @@ void BroadcastKEM_using_bitvec(global_broadcast_params_t gbp,
 *********************************************************  */
 void BroadcastKEM_using_indicies(global_broadcast_params_t gbp,
 				 broadcast_system_t sys, ct_t myct,
-				 int *in_recip, int num_recip, 
+				 int *in_recip, int num_recip,
 				 element_t key);
 
 
@@ -255,7 +255,7 @@ void BroadcastKEM_using_indicies(global_broadcast_params_t gbp,
    This function retrieves a broadcast key from a cipher-text
    header, once the decryption product has been calculated.
 *********************************************************  */
-void DecryptKEM_using_product(global_broadcast_params_t gbp, 
+void DecryptKEM_using_product(global_broadcast_params_t gbp,
 			      priv_key_t mykey, element_t key,
 			      ct_t myct);
 
@@ -263,7 +263,7 @@ void DecryptKEM_using_product(global_broadcast_params_t gbp,
 
 /* **********************************************************
    This function retrieves a broadcast key from a cipher-text
-   header, once the decryption product has been calculated, 
+   header, once the decryption product has been calculated,
    by calling the Gen-decr-prod-from-bitvec and then
    DecryptKEM-using-product routines.  Just a wrapper.
 *********************************************************  */
@@ -274,13 +274,15 @@ void Decrypt_BC_KEM_using_bitvec(global_broadcast_params_t gbp,
 
 /* **********************************************************
    This function retrieves a broadcast key from a cipher-text
-   header, once the decryption product has been calculated, 
+   header, once the decryption product has been calculated,
    by calling the Gen-decr-prod-from-bitvec and then
    DecryptKEM-using-product routines.  Just a wrapper.
 *********************************************************  */
-void Decrypt_BC_KEM_using_indicies(global_broadcast_params_t gbp, 
+void Decrypt_BC_KEM_using_indicies(global_broadcast_params_t gbp,
 				   priv_key_t mykey, element_t key,
-				   ct_t myct, int *in_recip, 
+				   ct_t myct, int *in_recip,
 				   int num_recip);
 
+void out(element_t elem, FILE *myfile);
 
+void in(element_t elem, FILE* myfile);

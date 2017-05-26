@@ -129,7 +129,7 @@ int broadcast_encrypt_group(
 int broadcast_decrypt_group(
   int* users_index, int users_count,
   char* user_private_key_file,
-  unsigned char* cipher, int cipher_length,
+  char* cipher, size_t* cipher_length,
   unsigned char* sym_key, int* sym_key_length)
 {
     // set up the system
@@ -147,16 +147,16 @@ int broadcast_decrypt_group(
     ct_t deserialized_cipher = (ct_t) pbc_malloc(sizeof(struct ciphertext_s));
     element_init(deserialized_cipher->C0, gbs->pairing->G2);
     element_init(deserialized_cipher->C1, gbs->pairing->G1);
-    // TODO : is this code valid for reading from a stream?
-    FILE* stream = open_memstream(&cipher, &cipher_length);
+    FILE* stream = open_memstream(&cipher, cipher_length);
     in(deserialized_cipher->C0, stream);
     in(deserialized_cipher->C1, stream);
     fclose(stream);
 
     // decrypt the symmetric key
     element_t decrypted_key;
-    Gen_decr_prod_from_indicies(gbs, pri_key->index, users_index, users_count, &pri_key);
-    DecryptKEM_using_product(gbs, &pri_key, decrypted_key, deserialized_cipher);
+    Gen_decr_prod_from_indicies(gbs, pri_key->index, users_index,
+        users_count, pri_key);
+    DecryptKEM_using_product(gbs, pri_key, decrypted_key, deserialized_cipher);
 
     // serialize the key for the upper level
     int decrypted_key_length = element_length_in_bytes(decrypted_key);
