@@ -3,6 +3,34 @@ import json
 from wrap_openssl import OpenSSLWrapper
 from crypto import UserKeyLoader
 from clouds import DropboxCloud
+from bdcst_enc import BroadcastEncryption
+import pickle
+
+class GroupApi:
+
+    @staticmethod
+    def bdcst_file(n):
+        return n + ".broadcast.manifest.txt"
+
+    def __init__(self):
+        self.bdcst = BroadcastEncryption()
+
+    def create_group(self, group_name, members):
+        (c, k) = self.bdcst.encrypt(members)
+        print(members)
+        print(c)
+        m = pickle.dumps((members, c))
+        DropboxCloud.put_overwrite_b(GroupApi.bdcst_file(group_name), m)
+        print("Encrypt Key : ", k)
+
+    def retreive_group(self, group_name):
+        m = DropboxCloud.get(GroupApi.bdcst_file(group_name))
+        (members, c) = pickle.loads(m)
+    #    print(members)
+    #    print(c)
+        k = self.bdcst.decrypt(members, "alice", c)
+        print('Decrypt is done')
+        print("Group Key : ", k)
 
 class AdminGroupManagement:
 
@@ -36,3 +64,11 @@ class AdminGroupManagement:
             k = self.crypt.broadcast_encrypt(self.aes_key, self.members)
             ks = self.crypt.rsa_sign(k, self.admin_pri_key)
             DropboxCloud.put_overwrite_b(self.name + ".key.manifest.txt", ks)
+
+def main():
+    g = GroupApi()
+    g.create_group("friends", ["alice", "bob", "steve"])
+    g.retreive_group("friends")
+
+if __name__ == "__main__":
+    main()
