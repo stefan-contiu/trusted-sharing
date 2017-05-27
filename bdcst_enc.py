@@ -38,11 +38,8 @@ class BroadcastEncryption(object):
         k = create_string_buffer(512)
         k_len = (c_int * 1)()
 
-        csb = create_string_buffer(c)
-        
-        print(csb)
         lib.broadcast_decrypt_group(u, len(users), p,
-            csb, len(c), k, k_len)
+            c, len(c), k, k_len)
 
         kb = bytes(k)[:k_len[0]]
         return self.openssl.sha256(kb)
@@ -53,10 +50,9 @@ def main():
   # alice, bob, eve, steve
   u = ["alice", "steve"]
   (k, c) = b.encrypt(u)
-  print(k)
   kd = b.decrypt(u, "alice", c)
-  print(kd)
+  assert k == kd
+  print("Broadcast encryption basic test works!")
 
 if __name__ == "__main__":
-    print("Calling into C code")
     main()

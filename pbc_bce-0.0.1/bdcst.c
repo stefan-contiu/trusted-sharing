@@ -1,26 +1,15 @@
 /*
-   Implementation of Boneh-Gentry-Waters broadcast encryption scheme
-   Original code by:
-      Matt Steiner   MattS@cs.stanford.edu
-      Stefan Contiu  stefan.contiu@bordeaux.fr
-   testbce.c
+    Extension of Boneh-Gentry-Waters broadcast encryption scheme
+    Author:
+        stefan.contiu@u-bordeaux.fr
+    Underlying code credits:
+        Matt Steiner   MattS@cs.stanford.edu
 */
-
-/*
-  TODO :
-  [x] byte serialization for ciphertext
-  [ ] byte de-serialization for ciphertext
-  [x] byte serialization for user_broadcast_key
-  [ ] byte de-serialization for user_broadcast_key
-  [x] call the C methods from Python
-*/
-
 
 #include <string.h>
 #include "pbc_bce.h"
 #include <stdlib.h>
 #include <time.h>
-#include <openssl/sha.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -121,10 +110,6 @@ int broadcast_encrypt_group(
   FILE* stream = open_memstream(&bp, &size);
   out(generated_ct->C0, stream);
   out(generated_ct->C1, stream);
-  printf("Encryption generated ciphertexts : \n");
-  element_out_str(stdout, 0, generated_ct->C0);
-  element_out_str(stdout, 0, generated_ct->C1);
-  printf("End Encryption generated ciphertexts : \n");
   fclose(stream);
   (*cipher_length) = (int)size;
   memcpy(cipher, bp, size);
@@ -140,7 +125,6 @@ int broadcast_decrypt_group(
     global_broadcast_params_t gbs;
     broadcast_system_t sys;
     char* config_file = broadcast_system_file_name();
-    printf("Loading public key and system config : %s\n", config_file);
     LoadParams(config_file, &gbs, &sys);
 
     // load user private key
@@ -152,39 +136,10 @@ int broadcast_decrypt_group(
     element_init(deserialized_cipher->C0, gbs->pairing->G2);
     element_init(deserialized_cipher->C1, gbs->pairing->G1);
 
-
-    char local_buff[512];
-    printf("Memory copied : %d\n", cipher_length);
-//
-  strcpy(local_buff, cipher);
-    memcpy(local_buff, cipher, cipher_length);
-    //printf("local buff %s\n", local_buff);
-
-
-    //FILE* stream = open_memstream(&cipher, cipher_length);
-    FILE* stream = fmemopen(local_buff, strlen(local_buff), "r");
-        //*cipher_length, "r");
-    if (stream == NULL)
-    {
-        printf("ERROR : Invalid deserialization stream for the cipher\n");
-        return -1;
-    }
-    printf("starting desearialization, be afraid : \n");
+    FILE* stream = fmemopen(cipher, cipher_length, "r");
     in(deserialized_cipher->C0, stream);
     in(deserialized_cipher->C1, stream);
-    printf("deserialization passed fine, here are the chips: \n");
-
-    element_out_str(stdout, 0, deserialized_cipher->C0);
-    element_out_str(stdout, 0, deserialized_cipher->C1);
-
-    if (stream == NULL)
-    {
-        printf("ERROR : Invalid deserialization stream for the cipher\n");
-        return -1;
-    }
     fclose(stream);
-    printf("3 \n");
-
 
     // decrypt the symmetric key
     element_t decrypted_key;
@@ -196,14 +151,6 @@ int broadcast_decrypt_group(
     int decrypted_key_length = element_length_in_bytes(decrypted_key);
     element_to_bytes(sym_key, decrypted_key);
     (*sym_key_length) = decrypted_key_length;
-}
-
-
-void flush_to_bytes(element_t elem, unsigned char* result, int length)
-{
-  length = element_length_in_bytes(elem);
-  result = pbc_malloc(length);
-  element_to_bytes(result, elem);
 }
 
 /*
