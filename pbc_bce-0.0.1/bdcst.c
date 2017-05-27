@@ -1,9 +1,9 @@
 /*
     Extension of Boneh-Gentry-Waters broadcast encryption scheme
     Author:
-        stefan.contiu@u-bordeaux.fr
+        Stefan Contiu   stefan.contiu@u-bordeaux.fr
     Underlying code credits:
-        Matt Steiner   MattS@cs.stanford.edu
+        Matt Steiner    MattS@cs.stanford.edu
 */
 
 #include <string.h>
@@ -113,6 +113,11 @@ int broadcast_encrypt_group(
   fclose(stream);
   (*cipher_length) = (int)size;
   memcpy(cipher, bp, size);
+
+  FreeCT(generated_ct);
+  free(bp);
+  FreeBCS(sys);
+  FreeGBP(gbs);
 }
 
 int broadcast_decrypt_group(
@@ -151,16 +156,7 @@ int broadcast_decrypt_group(
     int decrypted_key_length = element_length_in_bytes(decrypted_key);
     element_to_bytes(sym_key, decrypted_key);
     (*sym_key_length) = decrypted_key_length;
-}
 
-/*
-int free_all(void)
-{
-    FreeCT(myCT);
-    FreeBCS(sys);
+    //FreeBCS(sys);
     FreeGBP(gbs);
-    FreePK(&mykey);
-    //FreePK(&mykey2);
-    return 0;
 }
-*/
