@@ -5,6 +5,19 @@ import os.path
 from wrap_openssl import CryptoOps
 from clouds import DropboxCloud
 
+class UserSession:
+
+    # k: group name; v: (members, ciphertext)
+    groups_meta = []
+
+    # k : group name; v: (broadcast key, manifest key, safeguard key)
+    groups_keys = []
+
+    def __init__(self, user_name):
+        self.user_name = user_name
+
+
+
 class User:
 
     def __init__(self, user_id, pri_key, pub_key):

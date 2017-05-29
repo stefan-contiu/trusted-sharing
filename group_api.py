@@ -2,6 +2,7 @@ import os
 import json
 from wrap_openssl import OpenSSLWrapper
 from crypto import UserKeyLoader
+from user_api import UserSession
 
 from clouds import MockCloud as cloud # DropboxCloud
 
@@ -26,9 +27,10 @@ class GroupApi:
     def safeguard_key_file(n):
         return n + ".key.safeguard.txt"
 
-    def __init__(self):
+    def __init__(self, session):
         self.bdcst = BroadcastEncryption()
         self.crypto = OpenSSLWrapper()
+        self.session = session
 
     def create_group(self, group_name, members):
         # create group broadcast key
@@ -48,14 +50,17 @@ class GroupApi:
         cloud.put_overwrite_b(GroupApi.safeguard_key_file(group_name),
             cipher_safeguard_key)
 
-        # push keys to the local cache
-        # todo : ...
-        pass
+        # push meta & keys to the user session cache
+        self.session.groups_meta.add((members, c))
+        self.session.groups_keys.add((group_broadcast_key, aes_manifest_key,
+            aes_safeguard_key))
 
     def retreive_group_key(self, group_name):
         m = cloud.get(GroupApi.bdcst_file(group_name))
         (members, c) = pickle.loads(m)
         k = self.bdcst.decrypt(members, "alice", c)
+
+        # todo : push stuff to cache
 
     def add_user_to_group(self, group_name, new_user_name):
         # create new group broadcast key
@@ -83,6 +88,7 @@ class GroupApi:
 
     def upload_file(self, local_file_name):
         # AONTify
+
         # randomly choose block and encrypt with safeguard key
         # upload blocks to cloud
         # upload updated group manifest
@@ -123,7 +129,10 @@ class AdminGroupManagement:
             DropboxCloud.put_overwrite_b(self.name + ".key.manifest.txt", ks)
 
 def main():
-    g = GroupApi()
+
+    session = UserSession("alice")
+
+    g = GroupApi(session)
     g.create_group("friends", ["alice", "bob", "steve"])
     g.retreive_group_key("friends")
 
