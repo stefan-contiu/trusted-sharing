@@ -54,6 +54,10 @@ class OpenSSLWrapper:
         digest.update(msg)
         return digest.finalize()
 
+    def random(self, length):
+        return os.urandom(length)
+
+
 
 class CryptoOps:
 

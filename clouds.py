@@ -61,3 +61,47 @@ class DropboxCloud:
     def put_overwrite_b(k, v):
         DropboxCloud.dbx.files_upload(v, '/' + k,
             mode=dropbox.files.WriteMode.overwrite)
+
+
+class MockCloud:
+
+    local_path = "mock_cloud/"
+
+    @staticmethod
+    def clear():
+        pass
+
+    @staticmethod
+    def put(k, v):
+        MockCloud.put_generic(k, v, "wb")
+
+    @staticmethod
+    def get(k):
+        full_file_name = MockCloud.local_path + k
+        f = open(full_file_name, "rb")
+        v = f.read()
+        f.close()
+        return v
+
+    @staticmethod
+    def put_overwrite(k, v):
+        MockCloud.put_generic(k, v, "w")
+
+    @staticmethod
+    def put_overwrite_b(k, v):
+        MockCloud.put_generic(k, v, "wb")
+
+    @staticmethod
+    def put_generic(k, v, m):
+        full_file_name = MockCloud.local_path + k
+        f = open(full_file_name, m)
+        f.write(v)
+        f.close()
+
+    #@staticmethod
+    #def drop_single(self, item):
+        #pass
+
+    #@staticmethod
+    #def put_batch(self, files):
+    #    pass

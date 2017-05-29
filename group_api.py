@@ -2,7 +2,9 @@ import os
 import json
 from wrap_openssl import OpenSSLWrapper
 from crypto import UserKeyLoader
-from clouds import DropboxCloud
+
+from clouds import MockCloud as cloud # DropboxCloud
+
 from bdcst_enc import BroadcastEncryption
 import pickle
 
@@ -12,25 +14,80 @@ class GroupApi:
     def bdcst_file(n):
         return n + ".broadcast.manifest.txt"
 
+    @staticmethod
+    def manifest_file(n):
+        return n + ".files.manifest.txt"
+
+    @staticmethod
+    def manifest_key_file(n):
+        return n + ".key.manifest.txt"
+
+    @staticmethod
+    def safeguard_key_file(n):
+        return n + ".key.safeguard.txt"
+
     def __init__(self):
         self.bdcst = BroadcastEncryption()
+        self.crypto = OpenSSLWrapper()
 
     def create_group(self, group_name, members):
-        (c, k) = self.bdcst.encrypt(members)
-        print(members)
-        print(c)
+        # create group broadcast key
+        (group_broadcast_key, c) = self.bdcst.encrypt(members)
         m = pickle.dumps((members, c))
-        DropboxCloud.put_overwrite_b(GroupApi.bdcst_file(group_name), m)
-        print("Encrypt Key : ", k)
+        cloud.put_overwrite_b(GroupApi.bdcst_file(group_name), m)
 
-    def retreive_group(self, group_name):
-        m = DropboxCloud.get(GroupApi.bdcst_file(group_name))
+        # create group aes keys and protect them
+        aes_manifest_key = self.crypto.random(32)
+        aes_safeguard_key = self.crypto.random(32)
+        cipher_manifest_key = self.crypto.aes_encrypt(aes_manifest_key,
+            group_broadcast_key)
+        cipher_safeguard_key = self.crypto.aes_encrypt(aes_safeguard_key,
+            group_broadcast_key)
+        cloud.put_overwrite_b(GroupApi.manifest_key_file(group_name),
+            cipher_manifest_key)
+        cloud.put_overwrite_b(GroupApi.safeguard_key_file(group_name),
+            cipher_safeguard_key)
+
+        # push keys to the local cache
+        # todo : ...
+        pass
+
+    def retreive_group_key(self, group_name):
+        m = cloud.get(GroupApi.bdcst_file(group_name))
         (members, c) = pickle.loads(m)
-    #    print(members)
-    #    print(c)
         k = self.bdcst.decrypt(members, "alice", c)
-        print('Decrypt is done')
-        print("Group Key : ", k)
+
+    def add_user_to_group(self, group_name, new_user_name):
+        # create new group broadcast key
+        # encrypt the old keys with the new broadcast
+        # push everything to cloud
+        pass
+
+    def remove_user_from_group(self, group_name, user_name):
+        # create new group broadcast key
+        # create new manifest key
+        # create new safeguard key
+
+        # re-encrypt manifest
+        # re-encrypt all group safeguards
+
+        # push everything to cloud
+        pass
+
+    def download_file(self, file_name):
+        # identify the blocks that need to be downloaded
+        # download blocks
+        # decrypt the safeguarded block
+        # reverse AONT
+        pass
+
+    def upload_file(self, local_file_name):
+        # AONTify
+        # randomly choose block and encrypt with safeguard key
+        # upload blocks to cloud
+        # upload updated group manifest
+        pass
+
 
 class AdminGroupManagement:
 
@@ -68,7 +125,7 @@ class AdminGroupManagement:
 def main():
     g = GroupApi()
     g.create_group("friends", ["alice", "bob", "steve"])
-    g.retreive_group("friends")
+    g.retreive_group_key("friends")
 
 if __name__ == "__main__":
     main()
