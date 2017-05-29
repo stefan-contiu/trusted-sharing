@@ -7,7 +7,11 @@ from user_api import UserSession
 from clouds import MockCloud as cloud # DropboxCloud
 
 from bdcst_enc import BroadcastEncryption
+from aont import AONT
+
 import pickle
+import uuid
+
 
 class GroupApi:
 
@@ -31,6 +35,7 @@ class GroupApi:
         self.bdcst = BroadcastEncryption()
         self.crypto = OpenSSLWrapper()
         self.session = session
+        self.aont = AONT()
 
     def create_group(self, group_name, members):
         # create group broadcast key
@@ -51,9 +56,10 @@ class GroupApi:
             cipher_safeguard_key)
 
         # push meta & keys to the user session cache
-        self.session.groups_meta.add((members, c))
-        self.session.groups_keys.add((group_broadcast_key, aes_manifest_key,
-            aes_safeguard_key))
+        self.session.groups_meta[group_name] = (members, c)
+        self.session.groups_keys[group_name] = (group_broadcast_key, aes_manifest_key,
+            aes_safeguard_key)
+        self.session.groups_files[group_name] = {}
 
     def retreive_group_key(self, group_name):
         m = cloud.get(GroupApi.bdcst_file(group_name))
@@ -86,47 +92,29 @@ class GroupApi:
         # reverse AONT
         pass
 
-    def upload_file(self, local_file_name):
-        # AONTify
+    def upload_file(self, group_name, local_file_name):
+        # get group safeguard key
+        (b_key, m_key, s_key) = self.session.groups_keys[group_name]
 
-        # randomly choose block and encrypt with safeguard key
-        # upload blocks to cloud
-        # upload updated group manifest
-        pass
+        # aont-ify
+        (b, safe_index) = self.aont.aont_safeguard(local_file_name, s_key)
 
+        # assign a random id per each block
+        block_ids = []
+        for i in range(len(b)):
+            block_id = str(uuid.uuid4())
+            cloud.put_overwrite_b(block_id, b[i])
+            block_ids.append(block_id)
 
-class AdminGroupManagement:
+        # update the group files manifest
+        self.session.groups_files[group_name][local_file_name] = (block_ids,
+            safe_index)
+        f = pickle.dumps(self.session.groups_files[group_name])
 
-    def __init__(self, admin_name):
-        self.members = []
-        self.crypt = OpenSSLWrapper()
-        self.admin_pri_key = UserKeyLoader.pri_key(admin_name)
-        self.new_group = False
+        # encrypt it and push to cloud
+        cf = self.crypto.aes_encrypt(f, m_key)
+        cloud.put_overwrite_b(GroupApi.manifest_file(group_name), cf)
 
-    def load_group(self, name):
-        # there is an existing group key, go and fetch
-        pass
-
-    def create_group(self, name, members):
-        self.new_group = True
-        self.aes_key = os.urandom(32)
-        self.members.extend(members)
-        self.name = name
-
-    def add_users_to_group(self, name, members):
-        self.members.extend(members)
-
-    def push_changes(self):
-        m = str.encode(json.dumps(self.members))
-        c = self.crypt.aes_encrypt(m, self.aes_key)
-        p = self.crypt.rsa_sign(c, self.admin_pri_key)
-        DropboxCloud.put_overwrite_b(self.name + ".members.manifest.txt", p)
-
-        if self.new_group:
-            # put also group key block
-            k = self.crypt.broadcast_encrypt(self.aes_key, self.members)
-            ks = self.crypt.rsa_sign(k, self.admin_pri_key)
-            DropboxCloud.put_overwrite_b(self.name + ".key.manifest.txt", ks)
 
 def main():
 
@@ -134,6 +122,7 @@ def main():
 
     g = GroupApi(session)
     g.create_group("friends", ["alice", "bob", "steve"])
+    g.upload_file("friends", "test.pdf")
     g.retreive_group_key("friends")
 
 if __name__ == "__main__":
