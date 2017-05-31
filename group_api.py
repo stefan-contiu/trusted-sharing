@@ -41,7 +41,6 @@ class GroupApi:
         # create group broadcast key
         (group_broadcast_key, c) = self.bdcst.encrypt(members)
         m = pickle.dumps((members, c))
-        cloud.put_overwrite_b(GroupApi.bdcst_file(group_name), m)
 
         # create group aes keys and protect them
         aes_manifest_key = self.crypto.random(32)
@@ -50,16 +49,21 @@ class GroupApi:
             group_broadcast_key)
         cipher_safeguard_key = self.crypto.aes_encrypt(aes_safeguard_key,
             group_broadcast_key)
-        cloud.put_overwrite_b(GroupApi.manifest_key_file(group_name),
-            cipher_manifest_key)
-        cloud.put_overwrite_b(GroupApi.safeguard_key_file(group_name),
-            cipher_safeguard_key)
 
         # push meta & keys to the user session cache
         self.session.groups_meta[group_name] = (members, c)
         self.session.groups_keys[group_name] = (group_broadcast_key, aes_manifest_key,
             aes_safeguard_key)
         self.session.groups_files[group_name] = {}
+
+        # push stuff to the cloud
+        cloud.put_overwrite_b(GroupApi.bdcst_file(group_name), m)
+        cloud.put_overwrite_b(GroupApi.manifest_key_file(group_name),
+            cipher_manifest_key)
+        cloud.put_overwrite_b(GroupApi.safeguard_key_file(group_name),
+            cipher_safeguard_key)
+        # todo : sign all the above by admin key
+
 
     def add_user_to_group(self, group_name, new_user_name):
         # create new group broadcast key
@@ -162,30 +166,41 @@ class GroupApi:
         cf = self.crypto.aes_encrypt(f, m_key)
         cloud.put_overwrite_b(GroupApi.manifest_file(group_name), cf)
 
-    def download_file(self, file_name):
-        # identify the blocks that need to be downloaded
-        # download blocks
-        # decrypt the safeguarded block
-        # reverse AONT
-        pass
-
-    def retreive_group_key(self, group_name):
-        m = cloud.get(GroupApi.bdcst_file(group_name))
-        (members, c) = pickle.loads(m)
-        k = self.bdcst.decrypt(members, "alice", c)
-        # todo : push stuff to cache
-
-
+    def download_file(self, group_name, file_name, dest_file_name):
+        (block_ids, i) = self.session.groups_files[group_name][file_name]
+        blocks = []
+        for block_id in block_ids:
+            block = cloud.get(block_id)
+            blocks.append(block)
+        safeguard_key = self.session.groups_keys[group_name][2]
+        f = self.aont.reverse_aont_safeguard(blocks, i, safeguard_key)
+        with open(dest_file_name, "wb") as out:
+            out.write(f)
 
 def main():
+
+    adminSession = AdminSession("stefan")
+    adminSession.create_group("friends", ["alice", "bob", "steve"])
+
+    userSession = UserSession("alice")
+    userSession.upload_file("friends", "test.pdf")
+
+    userSession2 = UserSession("bob")
+    userSession2.download_file("friends", "test.pdf", "bob_test.pdf")
+
+    adminSession.remove_user_from_group("friends", "bob")
+
+    userSession2.download_file("friends", "test.pdf", "")
+
+
 
     session = UserSession("alice")
     g = GroupApi(session)
     g.create_group("friends", ["alice", "bob", "steve"])
     g.upload_file("friends", "test.pdf")
-    g.upload_file("friends", "test2.pdf")
-    g.remove_user_from_group("friends", "steve")
-
+    #g.upload_file("friends", "test2.pdf")
+    #g.remove_user_from_group("friends", "steve")
+    g.download_file("friends", "test.pdf", "test3.pdf")
 
 if __name__ == "__main__":
     main()
