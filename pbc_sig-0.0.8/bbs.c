@@ -593,6 +593,57 @@ void bbs_free_gmsk(bbs_manager_private_key_ptr gmsk)
   element_clear(gmsk->xi2);
 }
 
+void load_std_params(bbs_sys_param_t sp)
+{
+    bbs_sys_param_t sp;
+    pairing_t pairing;
+
+    FILE *curveFile = fopen("d201.param", "r");
+    char param_string[16384];
+    size_t count = fread(param_string, 1, 16384, curveFile);
+    fclose(curveFile);
+    pairing_init_set_buf(pairing, param_string, count);
+
+    bbs_gen_sys_param(sp, pairing);
+}
+
+void bbs_gen_raw(int n)
+{
+    bbs_sys_param_t sp;
+    load_std_params(sp);
+
+    bbs_group_public_key_ptr gpk;
+    bbs_manager_private_key_ptr gmsk;
+    bbs_group_private_key_t *gsk_list;
+    bbs_gen(gpk, gmsk, n, gsk_list, sp);
+
+    // TODO : serialize gpk and gsk_list
+    // ...
+}
+
+void bbs_sign_raw(unsigned char* sig,
+    int msg_len, void* msg,
+    int pub_key_length, unsigned char* pub_key,
+    int pri_key_length, unsigned char* pri_key)
+{
+
+    bbs_group_public_key_ptr gpk;
+    // TODO : deserialize pub_key into gpk
+    bbs_group_private_key_ptr gsk;
+    // TODO : deserialize pri_key into gsk
+    bbs_sign(sig, msg_len, msg, gpk, gsk)
+}
+
+int bbs_verify_raw(unsigned char *sig,
+    int msg_len, void *msg,
+    int pub_key_length, unsigned char* pub_key)
+{
+    bbs_group_public_key_ptr gpk;
+    // TODO : deserialize pub_key into gpk
+    bbs_verify(sig, msg_len, msg, gpk);
+}
+
+
 int main(int argc, char **argv)
 {
     bbs_sys_param_t sp;
@@ -611,7 +662,7 @@ int main(int argc, char **argv)
     size_t count = fread(param_string, 1, 16384, curveFile);
     fclose(curveFile);
     pairing_init_set_buf(pairing, param_string, count);
-    
+
     printf("gen sys param...\n");
     bbs_gen_sys_param(sp, pairing);
 
@@ -623,14 +674,14 @@ int main(int argc, char **argv)
     //t1 = pbc_get_time();
     //printf("%fs elapsed\n", t1 - t0);
     //t0 = t1;
-    
+
     printf("sign...\n");
     sig = (unsigned char *) pbc_malloc(sp->signature_length);
     bbs_sign(sig, 0, NULL, gpk, gsk[0]);
     //t1 = pbc_get_time();
     //printf("%fs elapsed\n", t1 - t0);
     //t0 = t1;
-    
+
     printf("verify...\n");
     result = bbs_verify(sig, 0, NULL, gpk);
     if (result) {
