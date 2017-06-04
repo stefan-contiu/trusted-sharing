@@ -3,6 +3,7 @@
 #include "inc/bbs.h"
 #include "inc/hash.h"
 #include <stdio.h>
+#include <string.h>
 
 void bbs_gen_sys_param(bbs_sys_param_ptr param, pairing_ptr pairing)
 {
@@ -593,9 +594,30 @@ void bbs_free_gmsk(bbs_manager_private_key_ptr gmsk)
   element_clear(gmsk->xi2);
 }
 
+void out(element_t elem, FILE *myfile)
+{
+  int sz = element_length_in_bytes(elem);
+  fwrite(&sz, 4, 1, myfile);
+  unsigned char* data = pbc_malloc(sz);
+  if(!data) printf("DATA IS NULL\n");
+  element_to_bytes(data, elem);
+  fwrite(data, sz, 1, myfile);
+  pbc_free(data);
+}
+
+void in(element_t elem, FILE *myfile) {
+  int sz;
+  fread(&sz, 4, 1, myfile);
+
+  unsigned char* data = pbc_malloc(sz);
+  fread(data, sz, 1, myfile);
+
+  element_from_bytes(elem, data);
+  pbc_free(data);
+}
+
 void load_std_params(bbs_sys_param_t sp)
 {
-    bbs_sys_param_t sp;
     pairing_t pairing;
 
     FILE *curveFile = fopen("d201.param", "r");
@@ -607,13 +629,77 @@ void load_std_params(bbs_sys_param_t sp)
     bbs_gen_sys_param(sp, pairing);
 }
 
-void bbs_gen_raw(int n)
+void serialize_public_key(bbs_group_public_key_ptr gpk,
+    unsigned char* pub_key_bytes, int* pub_key_bytes_len)
+{
+    size_t size;
+    char *bp;
+    FILE* stream = open_memstream(&bp, &size);
+    out(gpk->g2, stream);
+    out(gpk->g1, stream);
+    out(gpk->h, stream);
+    out(gpk->u, stream);
+    out(gpk->v, stream);
+    out(gpk->w, stream);
+    out(gpk->pr_g1_g2, stream);
+    out(gpk->pr_h_g2, stream);
+    out(gpk->pr_h_w, stream);
+    out(gpk->pr_g1_g2_inv, stream);
+    fclose(stream);
+    (*pub_key_bytes_len) = (int)size;
+    memcpy(pub_key_bytes, bp, size);
+}
+
+void deserialize_public_key(bbs_group_public_key_ptr gpk,
+    unsigned char* pub_key_bytes, int pub_key_bytes_len)
+{
+    FILE* stream = fmemopen(pub_key_bytes, pub_key_bytes_len, "r");
+    in(gpk->g2, stream);
+    in(gpk->g1, stream);
+    in(gpk->h, stream);
+    in(gpk->u, stream);
+    in(gpk->v, stream);
+    in(gpk->w, stream);
+    in(gpk->pr_g1_g2, stream);
+    in(gpk->pr_h_g2, stream);
+    in(gpk->pr_h_w, stream);
+    in(gpk->pr_g1_g2_inv, stream);
+    fclose(stream);
+}
+
+void serialize_private_key(bbs_group_private_key_ptr gsk,
+    unsigned char* pri_key_bytes, int* pri_key_bytes_len)
+{
+    size_t size;
+    char *bp;
+    FILE* stream = open_memstream(&bp, &size);
+    out(gsk->A, stream);
+    out(gsk->x, stream);
+    out(gsk->pr_A_g2, stream);
+    fclose(stream);
+    (*pri_key_bytes_len) = (int)size;
+    memcpy(pri_key_bytes, bp, size);
+}
+
+void deserialize_private_key(bbs_group_private_key_ptr gsk,
+    unsigned char* pri_key_bytes, int pri_key_bytes_len)
+{
+    FILE* stream = fmemopen(pri_key_bytes, pri_key_bytes_len, "r");
+    in(gsk->A, stream);
+    in(gsk->x, stream);
+    in(gsk->pr_A_g2, stream);
+    fclose(stream);
+}
+
+void bbs_gen_raw(int n,
+    unsigned char* pub_key, int* pub_key_len)
 {
     bbs_sys_param_t sp;
     load_std_params(sp);
 
     bbs_group_public_key_ptr gpk;
     bbs_manager_private_key_ptr gmsk;
+
     bbs_group_private_key_t *gsk_list;
     bbs_gen(gpk, gmsk, n, gsk_list, sp);
 
@@ -626,12 +712,20 @@ void bbs_sign_raw(unsigned char* sig,
     int pub_key_length, unsigned char* pub_key,
     int pri_key_length, unsigned char* pri_key)
 {
+    bbs_sys_param_t sp;
+    load_std_params(sp);
 
     bbs_group_public_key_ptr gpk;
     // TODO : deserialize pub_key into gpk
     bbs_group_private_key_ptr gsk;
     // TODO : deserialize pri_key into gsk
-    bbs_sign(sig, msg_len, msg, gpk, gsk)
+
+    // inject sys params
+    gpk->param = sp;
+    gsk->param = sp;
+
+    // sign
+    bbs_sign(sig, msg_len, msg, gpk, gsk);
 }
 
 int bbs_verify_raw(unsigned char *sig,
@@ -640,7 +734,12 @@ int bbs_verify_raw(unsigned char *sig,
 {
     bbs_group_public_key_ptr gpk;
     // TODO : deserialize pub_key into gpk
-    bbs_verify(sig, msg_len, msg, gpk);
+
+    // inject sys params
+    gpk->param = sp;
+
+    // verify
+    return bbs_verify(sig, msg_len, msg, gpk);
 }
 
 
