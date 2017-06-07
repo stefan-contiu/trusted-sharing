@@ -87,7 +87,6 @@ void bbs_sign(unsigned char *sig, int hashlen, void *hash, bbs_group_public_key_
   element_t z0, z1;
   element_t e10, et0;
   unsigned char *writeptr = sig;
-
   element_init_G1(T1, pairing);
   element_init_G1(T2, pairing);
   element_init_G1(T3, pairing);
@@ -100,19 +99,16 @@ void bbs_sign(unsigned char *sig, int hashlen, void *hash, bbs_group_public_key_
   element_init(c, Fp);
   element_init(alpha, Fp); element_random(alpha);
   element_init(beta, Fp); element_random(beta);
-
   //temp variables
   element_init(z0, Fp);
   element_init(z1, Fp);
   element_init_GT(et0, pairing);
   element_init_G1(e10, pairing);
-
   element_init(ralpha, Fp); element_random(ralpha);
   element_init(rbeta, Fp); element_random(rbeta);
   element_init(rx, Fp); element_random(rx);
   element_init(rdelta1, Fp); element_random(rdelta1);
   element_init(rdelta2, Fp); element_random(rdelta2);
-
   element_pow_zn(T1, gpk->u, alpha);
   element_pow_zn(T2, gpk->v, beta);
   element_add(z0, alpha, beta);
@@ -132,6 +128,7 @@ void bbs_sign(unsigned char *sig, int hashlen, void *hash, bbs_group_public_key_
 
   //pairing_apply(et0, T3, gpk->g2, pairing);  /* precomputed */
   element_pow_zn(et0, gpk->pr_h_g2, z0); /* NB. here z0 = alpha+beta */
+
   element_mul(et0, et0, gsk->pr_A_g2);
   //element_pow_zn(R3, et0, rx);
 
@@ -159,6 +156,7 @@ void bbs_sign(unsigned char *sig, int hashlen, void *hash, bbs_group_public_key_
   //element_pow_zn(e10, gpk->v, z0);
   //element_mul(R5, R5, e10);
   element_pow2_zn(R5, T2, rx, gpk->v, z0);
+
 
   element_t M;
   element_init_G1(M, pairing);
@@ -630,11 +628,13 @@ void load_std_params(bbs_sys_param_t sp)
 }
 
 void serialize_public_key(bbs_group_public_key_ptr gpk,
-    unsigned char* pub_key_bytes, int* pub_key_bytes_len)
+    char* pub_key_bytes, int* pub_key_bytes_len)
 {
+    printf("From C : PUB KEY Serialization !\n");
     size_t size;
     char *bp;
     FILE* stream = open_memstream(&bp, &size);
+    printf("From C : PUB KEY Serialization - stream opened!\n");
     out(gpk->g2, stream);
     out(gpk->g1, stream);
     out(gpk->h, stream);
@@ -645,14 +645,31 @@ void serialize_public_key(bbs_group_public_key_ptr gpk,
     out(gpk->pr_h_g2, stream);
     out(gpk->pr_h_w, stream);
     out(gpk->pr_g1_g2_inv, stream);
+    printf("From C : PUB KEY Serialization - stuff written!\n");
     fclose(stream);
+    printf("From C : PUB KEY Serialization - stream closed!\n");
+
     (*pub_key_bytes_len) = (int)size;
     memcpy(pub_key_bytes, bp, size);
+    printf("From C : PUB KEY Serialization - finalized!\n");
 }
 
 void deserialize_public_key(bbs_group_public_key_ptr gpk,
     unsigned char* pub_key_bytes, int pub_key_bytes_len)
 {
+    pairing_ptr pairing;
+    pairing = gpk->param->pairing;
+    element_init_G1(gpk->g1, pairing);
+    element_init_G2(gpk->g2, pairing);
+    element_init_G1(gpk->h, pairing);
+    element_init_G1(gpk->u, pairing);
+    element_init_G1(gpk->v, pairing);
+    element_init_G2(gpk->w, pairing);
+    element_init_GT(gpk->pr_g1_g2, pairing);
+    element_init_GT(gpk->pr_g1_g2_inv, pairing);
+    element_init_GT(gpk->pr_h_g2, pairing);
+    element_init_GT(gpk->pr_h_w, pairing);
+
     FILE* stream = fmemopen(pub_key_bytes, pub_key_bytes_len, "r");
     in(gpk->g2, stream);
     in(gpk->g1, stream);
@@ -684,6 +701,13 @@ void serialize_private_key(bbs_group_private_key_ptr gsk,
 void deserialize_private_key(bbs_group_private_key_ptr gsk,
     unsigned char* pri_key_bytes, int pri_key_bytes_len)
 {
+    pairing_ptr pairing;
+    pairing = gsk->param->pairing;
+
+    element_init_G1(gsk->A, pairing);
+    element_init_Zr(gsk->x, pairing);
+    element_init_GT(gsk->pr_A_g2, pairing);
+
     FILE* stream = fmemopen(pri_key_bytes, pri_key_bytes_len, "r");
     in(gsk->A, stream);
     in(gsk->x, stream);
@@ -691,64 +715,75 @@ void deserialize_private_key(bbs_group_private_key_ptr gsk,
     fclose(stream);
 }
 
-void bbs_gen_raw(int n,
-    unsigned char* pub_key, int* pub_key_len)
+void bbs_sign_raw(
+    char* signature, int* sig_length,
+    int msg_len, char* msg,
+    int pub_key_length, char* pub_key,
+    int pri_key_length, char* pri_key)
 {
+
     bbs_sys_param_t sp;
     load_std_params(sp);
 
-    bbs_group_public_key_ptr gpk;
-    bbs_manager_private_key_ptr gmsk;
+    bbs_group_public_key_t s_gpk;
+    s_gpk[0].param = sp;
 
-    bbs_group_private_key_t *gsk_list;
-    bbs_gen(gpk, gmsk, n, gsk_list, sp);
+    deserialize_public_key(&s_gpk[0], pub_key, pub_key_length);
 
-    // TODO : serialize gpk and gsk_list
-    // ...
-}
+    bbs_group_private_key_t s_gsk;
+    s_gsk[0].param = sp;
+    deserialize_private_key(&s_gsk[0], pri_key, pri_key_length);
 
-void bbs_sign_raw(unsigned char* sig,
-    int msg_len, void* msg,
-    int pub_key_length, unsigned char* pub_key,
-    int pri_key_length, unsigned char* pri_key)
-{
-    bbs_sys_param_t sp;
-    load_std_params(sp);
-
-    bbs_group_public_key_ptr gpk;
-    // TODO : deserialize pub_key into gpk
-    bbs_group_private_key_ptr gsk;
-    // TODO : deserialize pri_key into gsk
-
-    // inject sys params
-    gpk->param = sp;
-    gsk->param = sp;
+    unsigned char *sig;
+    sig = (unsigned char *) pbc_malloc(sp->signature_length);
 
     // sign
-    bbs_sign(sig, msg_len, msg, gpk, gsk);
+    bbs_sign(sig, msg_len, msg, &s_gpk[0], &s_gsk[0]);
+    memcpy(signature, sig, sp->signature_length);
+    (*sig_length) = sp->signature_length;
 }
 
 int bbs_verify_raw(unsigned char *sig,
     int msg_len, void *msg,
     int pub_key_length, unsigned char* pub_key)
 {
-    bbs_group_public_key_ptr gpk;
-    // TODO : deserialize pub_key into gpk
+    bbs_sys_param_t sp;
+    load_std_params(sp);
 
-    // inject sys params
-    gpk->param = sp;
+    bbs_group_public_key_t s_gpk;
+    s_gpk[0].param = sp;
+    
+    deserialize_public_key(&s_gpk[0], pub_key, pub_key_length);
 
     // verify
-    return bbs_verify(sig, msg_len, msg, gpk);
+    return bbs_verify(sig, msg_len, msg, &s_gpk[0]);
+}
+
+char* itoa(int val, int base)
+{
+	static char buf[32] = {0};
+	int i = 30;
+	for(; val && i ; --i, val /= base)
+		buf[i] = "0123456789abcdef"[val % base];
+	return &buf[i+1];
+}
+
+char* concat(const char *s1, const char *s2)
+{
+    char *result = malloc(strlen(s1)+strlen(s2)+1);
+    strcpy(result, s1);
+    strcat(result, s2);
+    return result;
 }
 
 
 int main(int argc, char **argv)
 {
+    int N = 16;
     bbs_sys_param_t sp;
     bbs_group_public_key_t gpk;
     bbs_manager_private_key_t gmsk;
-    bbs_group_private_key_t gsk[5];
+    bbs_group_private_key_t gsk[N];
     pairing_t pairing;
     unsigned char *sig;
     int result;
@@ -765,14 +800,47 @@ int main(int argc, char **argv)
     printf("gen sys param...\n");
     bbs_gen_sys_param(sp, pairing);
 
-
-
     printf("generating keys...\n");
     //t0 = pbc_get_time();
-    bbs_gen(gpk, gmsk, 5, gsk, sp);
+    bbs_gen(gpk, gmsk, N, gsk, sp);
     //t1 = pbc_get_time();
     //printf("%fs elapsed\n", t1 - t0);
     //t0 = t1;
+
+    // Following code was used for serializing the generated keys
+/*
+    printf("Saving keys to the drive ...\n");
+    char pub_key_bytes[4096];
+    int pub_key_bytes_len;
+    serialize_public_key(gpk, pub_key_bytes, &pub_key_bytes_len);
+    printf("Saving public key of length : %d\n", pub_key_bytes_len);
+    FILE *file = fopen("admin_keys/admin.pub", "w");
+    //int results = fputs(array, file);
+    fwrite(pub_key_bytes, 1, pub_key_bytes_len, file);
+    fclose(file);
+
+
+    for(int i=0; i<N; i++)
+    {
+        char pri_key_bytes[4096];
+        int pri_key_bytes_len;
+        serialize_private_key(gsk[i], pri_key_bytes, &pri_key_bytes_len);
+        printf("Saving private key of length : %d\n", pub_key_bytes_len);
+
+        char* s = itoa(i+1, 10);
+        char* dirName = concat("admin_keys/admin", s);
+
+        FILE *f = fopen(dirName, "w");
+        //int results = fputs(array, file);
+        fwrite(pri_key_bytes, 1, pri_key_bytes_len, f);
+        fclose(f);
+    }
+
+
+    return 0;
+*/
+
+
 
     printf("sign...\n");
     sig = (unsigned char *) pbc_malloc(sp->signature_length);
@@ -780,6 +848,12 @@ int main(int argc, char **argv)
     //t1 = pbc_get_time();
     //printf("%fs elapsed\n", t1 - t0);
     //t0 = t1;
+
+    FILE *f = fopen("signature.txt", "w");
+    //int results = fputs(array, file);
+    fwrite(sig, 1, sp->signature_length, f);
+    fclose(f);
+
 
     printf("verify...\n");
     result = bbs_verify(sig, 0, NULL, gpk);
