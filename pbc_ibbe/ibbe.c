@@ -1,4 +1,6 @@
 #include "ibbe.h"
+#include <openssl/sha.h>
+
 
 pairing_t pairing;
 
@@ -15,7 +17,7 @@ int Setup(PublicKey *puk, PrivateKey *prk, int argc, char** argv)
     srand(time(NULL));
     pbc_random_set_deterministic(rand());//����������
     pbc_demo_pairing_init(pairing, argc, argv);
-
+    printf("Pairing initialized ...\n");
 
     element_init_G1(g, pairing);
     element_init_G1(h, pairing);
@@ -23,18 +25,23 @@ int Setup(PublicKey *puk, PrivateKey *prk, int argc, char** argv)
     element_init_GT(v, pairing);
     element_init_Zr(r, pairing);
     element_init_Zr(temp1, pairing);
+    printf("Pairing initialized ...\n");
 
     /*pick 2 generators in G*/
     element_random(g);
     element_random(h);
     /*pick random value r in Zp*/
     element_random(r);
+    printf("Pairing initialized ...\n");
+
 
     element_pow_zn(w, g, r);    //w = g ^ r
     element_pairing(v, g, h);   //v = e(g, h)
+    printf("Last    Pairing initialized ...\n");
 
     element_pp_t g_pp;
     element_pp_init(g_pp, r);
+    printf("Got here ...\n");
 
     hRec = (element_t*)malloc(sizeof(element_t) * (MAX_RECEIVER+2));
     mpz_t n;
@@ -114,7 +121,7 @@ int DestroySK(IdentityKey ikey)
     return 0;
 }
 
-int Encrypt(mpz_t message, Cypher *cypher, PublicKey key, char** idSet, int idNum)
+int Encrypt(mpz_t message, Cipher *cipher, PublicKey key, char idSet[][MAX_STRING_LENGTH], int idNum)
 {
     element_t k;
     element_t m;
@@ -145,8 +152,6 @@ int Encrypt(mpz_t message, Cypher *cypher, PublicKey key, char** idSet, int idNu
         element_invert(c1, c1);
     }
 
-    //printf("c1 was computed !!!!\n");
-
     /*compute c2 = h ^ (k * (r+H(ID)...)*/
     {
         /*polynominal multiplication */
@@ -172,9 +177,53 @@ int Encrypt(mpz_t message, Cypher *cypher, PublicKey key, char** idSet, int idNu
             if (i < idNum)
             {
                 //printf("Receiver %d: %s\n", i+1, idSet+i*5);
-                element_from_hash(hid[i], idSet+i*5, strlen(idSet+i*5));
+
+
+                //unsigned char ibuf[] = "compute sha1";
+                unsigned char obuf[20];
+
+                //SHA1(ibuf, strlen(ibuf), obuf);
+                SHA1(idSet[i], strlen(idSet[i]), obuf);
+
+                //element_from_hash(hid[i], idSet[i], strlen(idSet[i]));
+                element_from_hash(hid[i], obuf, strlen(obuf));
+                //element_random(hid[i]);
+
+/*
+                int ii;
+                char* buf_str = (char*) malloc (2*20 + 1);
+                char* buf_ptr = buf_str;
+                for (ii = 0; ii < 20; ii++)
+                {
+                    buf_ptr += sprintf(buf_ptr, "%02X", obuf[ii]);
+                }
+                //sprintf(buf_ptr,"\n");
+                *(buf_ptr + 1) = '\0';
+                printf("MAGIC : %s\n", buf_str);
+
+
+
+                //printf("SHA : %s\n", obuf);
+
+                mpz_t hash_mpz;
+                mpz_init(hash_mpz);
+                //mpz_set_ui(message, 666);
+                mpz_set_str(hash_mpz, buf_str, 16);
+        //        gmp_printf("hashed mpz= %Zd\n", hash_mpz);
+                element_set_mpz(hid[i], hash_mpz);
+
+                //int req_bytes = pairing_length_in_bytes_Zr(pairing);
+                //printf("REQUIRED BYTES for Zp : %d\n", req_bytes);
+
+
+                //
+                element_printf("%B\n", hid[i]);
+
+                //element_from_bytes(hid[i], obuf);
+*/
             }
         }
+
     //    printf("c2 was init !!!!\n");
 
         /*calculation*/
@@ -198,7 +247,10 @@ int Encrypt(mpz_t message, Cypher *cypher, PublicKey key, char** idSet, int idNu
         element_set1(temp1);
     //    printf("no crash 1 !!!!\n");
 
-        for (i = 0; i < idNum+1; i++)
+    // TODO : the loop needs to be fixed to work with non-multiple of 3
+
+        for (i = 0; i < idNum-1; i+=3)
+//        for (i = 0; i < idNum+1; i++)
         {
             //printf("no crash loop %d !!!!\n", i);
             //element_printf("temp2 : %B\n", temp2);
@@ -206,7 +258,10 @@ int Encrypt(mpz_t message, Cypher *cypher, PublicKey key, char** idSet, int idNu
             //element_printf("poly : %B\n", polyA[i]);
 
 
-            element_pow_zn(temp2, key.h[i], polyA[i]);
+            element_pow3_zn(temp2, key.h[i], polyA[i], key.h[i+1], polyA[i+1], key.h[i+2], polyA[i+2]);
+            //element_pow2_zn(temp2, key.h[i], polyA[i], key.h[i+1], polyA[i+1]);
+            // old way:
+//            element_pow_zn(temp2, key.h[i], polyA[i]);
             element_mul(temp1, temp1, temp2);
         }
     //    printf("no crash 3 !!!!\n");
@@ -227,12 +282,12 @@ int Encrypt(mpz_t message, Cypher *cypher, PublicKey key, char** idSet, int idNu
         element_mul(c3, c3, m);
     }
 
-    element_init_G1(cypher->c1, pairing);
-    element_init_G1(cypher->c2, pairing);
-    element_init_GT(cypher->c3, pairing);
-    element_set(cypher->c1, c1);
-    element_set(cypher->c2, c2);
-    element_set(cypher->c3, c3);
+    element_init_G1(cipher->c1, pairing);
+    element_init_G1(cipher->c2, pairing);
+    element_init_GT(cipher->c3, pairing);
+    element_set(cipher->c1, c1);
+    element_set(cipher->c2, c2);
+    element_set(cipher->c3, c3);
 
     element_clear(k);
     element_clear(m);
@@ -243,18 +298,16 @@ int Encrypt(mpz_t message, Cypher *cypher, PublicKey key, char** idSet, int idNu
 }
 
 
-int Decrypt(Plain *plain, Cypher cypher, PublicKey key, IdentityKey ikey, char* id, char** idSet, int idNum)
+int Decrypt(Plain *plain, Cipher cipher, PublicKey key, IdentityKey ikey, char* id, char idSet[][MAX_STRING_LENGTH], int idNum)
 {
-    // TODO : This might need a fix here, the way membership is tested agains the group
     int i, j;
     int mark = 1;
     char **SubSet;
+
     for (i = 0; i < idNum; i++)
     {
         /*check if id is a memeber of idSet*/
-        printf("CHECK 1 : %s\n", id);
-        printf("CHECK 2 : %s\n\n", (char*)(idSet+i*5));
-        if (strcmp(id, (char*)(idSet+i*5)) == 0)
+        if (strcmp(id, idSet[i]) == 0)
         {
             mark = 0;
             break;
@@ -273,7 +326,7 @@ int Decrypt(Plain *plain, Cypher cypher, PublicKey key, IdentityKey ikey, char* 
         if (i == mark)
             continue;
         SubSet[j] = (char*)malloc(sizeof(char) * MAX_STRING_LENGTH);
-        memcpy(SubSet[j], idSet+i*5, MAX_STRING_LENGTH);
+        memcpy(SubSet[j], idSet[i], MAX_STRING_LENGTH);
         //printf("%dth exclusive member: %s\n", j+1, SubSet[j]);
         j++;
     }
@@ -333,6 +386,7 @@ int Decrypt(Plain *plain, Cypher cypher, PublicKey key, IdentityKey ikey, char* 
             element_set1(htemp1);
             for (i = 0; i < idNum-1; i++)
             {
+                // TODO : uncomment this line
                 element_pow_zn(htemp2, key.h[i], polyA[i+1]);
                 element_mul(htemp1, htemp1, htemp2);
             }
@@ -343,10 +397,12 @@ int Decrypt(Plain *plain, Cypher cypher, PublicKey key, IdentityKey ikey, char* 
         */
     }
 
-    element_pairing(temp1, cypher.c1, htemp1);
-    element_pairing(temp2, ikey, cypher.c2);
+    element_pairing(temp1, cipher.c1, htemp1);
+    element_pairing(temp2, ikey, cipher.c2);
     element_mul(temp1, temp1, temp2);
 
+    // todo : this would have to be fixed as it assumes that idNum-1 is the
+    // element we exlude from the set, or not?
     element_set1(ztemp);
     for (i = 0; i < idNum - 1; i++)
     {
@@ -357,7 +413,7 @@ int Decrypt(Plain *plain, Cypher cypher, PublicKey key, IdentityKey ikey, char* 
     /*K*/
     element_pow_zn(temp1, temp1, ztemp);
 
-    element_div(*plain, cypher.c3, temp1);
+    element_div(*plain, cipher.c3, temp1);
 
     //free(hid);
     element_clear(htemp1);

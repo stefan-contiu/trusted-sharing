@@ -20,10 +20,21 @@ int main(int argc, char** argv)
         printf("User : %s\n", S[i]);
     }
 
+/*
+    for (i = 0; i < MAX_RECEIVER; i++)
+    {
+        printf("INIT : %s\n", S[i]);
+    }
+*/
+
     PublicKey pubkey;
     PrivateKey prvkey;
     IdentityKey idkey[MAX_RECEIVER+1];
+
     Setup(&pubkey, &prvkey, argc, argv);
+
+
+
 /*
     {
         printf("--------------------\n");
@@ -51,12 +62,12 @@ int main(int argc, char** argv)
 */
     mpz_t message;
     Plain plain;
-    Cypher cypher;
+    Cipher cipher;
     mpz_init(message);
     mpz_set_ui(message, 666);
     printf("--------Encryption START --------\n");
     time1 = clock();
-    Encrypt(message, &cypher, pubkey, (char**)S, MAX_RECEIVER);
+    Encrypt(message, &cipher, pubkey, S, MAX_RECEIVER);
     time2 = clock();
     {
         //printf("--------------------\n");
@@ -68,13 +79,15 @@ int main(int argc, char** argv)
     }
     printf("--------Encryption END --------\n\n");
     printf("@time cost: %lfms\n\n ", 1000.0*(time2-time1)/CLOCKS_PER_SEC);
+    return 0;
+
 
     for (i = 0; i < MAX_RECEIVER; i++)
     {
         Extract(prvkey, idkey[i], S[i]);
         printf("--------Decryption S%d--------\n", i+1);
         time1 = clock();
-        if (Decrypt(&plain, cypher, pubkey, idkey[i], S[i], (char**)S, MAX_RECEIVER))
+        if (Decrypt(&plain, cipher, pubkey, idkey[i], S[i], S, MAX_RECEIVER))
         {
             printf("ID: %s is not a member of the receiver set.\n", S[i]);
             break;
@@ -91,13 +104,12 @@ int main(int argc, char** argv)
         printf("@time cost: %lfms\n\n ", 1000.0*(time2-time1)/CLOCKS_PER_SEC);
         //getchar();
     }
-
-
     return 0;
+
     {
-        Extract(prvkey, idkey[MAX_RECEIVER+1-1], Attacker);
+        Extract(prvkey, idkey[MAX_RECEIVER+1], Attacker);
         printf("--------BAD Decryption--------\n");
-        if (Decrypt(&plain, cypher, pubkey, idkey[MAX_RECEIVER+1-1], S[2], (char**)S, MAX_RECEIVER))
+        if (Decrypt(&plain, cipher, pubkey, idkey[MAX_RECEIVER+1], S[2], S, MAX_RECEIVER))
         {
             printf("ID: %s is not a member of the receiver set.\n", S[i]);
 
