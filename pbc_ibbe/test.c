@@ -17,7 +17,7 @@ int main(int argc, char** argv)
     for (i = 0; i < MAX_RECEIVER; i++)
     {
         sprintf(S[i], "test%d@mail.com", i+1);
-        printf("User : %s\n", S[i]);
+        //printf("User : %s\n", S[i]);
     }
 
 /*
@@ -66,9 +66,15 @@ int main(int argc, char** argv)
     mpz_init(message);
     mpz_set_ui(message, 666);
     printf("--------Encryption START --------\n");
-    time1 = clock();
+    //time1 = clock();
+    struct timespec start, finish;
+    double elapsed;
+    clock_gettime(CLOCK_MONOTONIC, &start);
     Encrypt(message, &cipher, pubkey, S, MAX_RECEIVER);
-    time2 = clock();
+    clock_gettime(CLOCK_MONOTONIC, &finish);
+    elapsed = (finish.tv_sec - start.tv_sec);
+    elapsed += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
+    //time2 = clock();
     {
         //printf("--------------------\n");
     //    printf("Cypher text :\n");
@@ -78,7 +84,8 @@ int main(int argc, char** argv)
         //printf("--------------------\n");
     }
     printf("--------Encryption END --------\n\n");
-    printf("@time cost: %lfms\n\n ", 1000.0*(time2-time1)/CLOCKS_PER_SEC);
+    //printf("@time cost: %lfms\n\n ", 1000.0*(time2-time1)/CLOCKS_PER_SEC);
+    printf("TOTAL TIME : %f\n", elapsed);
     return 0;
 
 

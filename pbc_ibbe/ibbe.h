@@ -5,7 +5,7 @@
 #include <time.h>
 #include <string.h>
 
-#define MAX_RECEIVER 10000
+#define MAX_RECEIVER 1000
 #define MAX_STRING_LENGTH 20
 
 typedef struct {
