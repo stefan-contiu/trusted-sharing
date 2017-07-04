@@ -7,7 +7,14 @@
 #include <time.h>
 
 char S[MAX_RECEIVER][MAX_STRING_LENGTH];
-char Attacker[MAX_STRING_LENGTH] = "wrongdecrypt@mail.com";
+
+void print_key(unsigned char *h)
+{
+    for(int i=0; i<32; i++)
+        printf("%02X", h[i]);
+    printf("\n");
+}
+
 
 int main(int argc, char** argv)
 {
@@ -17,122 +24,41 @@ int main(int argc, char** argv)
     for (i = 0; i < MAX_RECEIVER; i++)
     {
         sprintf(S[i], "test%d@mail.com", i+1);
-        //printf("User : %s\n", S[i]);
     }
-
-/*
-    for (i = 0; i < MAX_RECEIVER; i++)
-    {
-        printf("INIT : %s\n", S[i]);
-    }
-*/
 
     PublicKey pubkey;
-    PrivateKey prvkey;
-    IdentityKey idkey[MAX_RECEIVER+1];
+    MasterSecretKey prvkey;
+    ShortPublicKey shortPubKey;
+    //UserPrivateKey idkey[MAX_RECEIVER+1];
 
-    Setup(&pubkey, &prvkey, argc, argv);
+    setup_sgx_safe(&pubkey, &shortPubKey, &prvkey, argc, argv);
 
+    Ciphertext cipher;
+    BroadcastKey bKey;
 
-
-/*
-    {
-        printf("--------------------\n");
-        printf("Master publick key:\n");
-        element_printf("w = %B\n", pubkey.w);
-        element_printf("v = %B\n", pubkey.v);
-        for (i = 0; i < MAX_RECEIVER; i++){
-            element_printf("h[%d] = %B\n", i, pubkey.h[i]);
-        }
-        printf("--------------------\n");
-    }
-    {
-        printf("--------------------\n");
-        printf("Master secret key:\n");
-        element_printf("g = %B\n", prvkey.g);
-        element_printf("r = %B\n", prvkey.r);
-        printf("--------------------\n");
-    }
-    //{
-    //    printf("--------------------\n");
-    //    printf("Identity key:\n");
-    //    element_printf("idkey = %B\n", idkey);
-    //    printf("--------------------\n");
-    //}
-*/
-    mpz_t message;
-    Plain plain;
-    Cipher cipher;
-    mpz_init(message);
-    mpz_set_ui(message, 666);
-    printf("--------Encryption START --------\n");
-    //time1 = clock();
     struct timespec start, finish;
     double elapsed;
     clock_gettime(CLOCK_MONOTONIC, &start);
-    Encrypt(message, &cipher, pubkey, S, MAX_RECEIVER);
+
+    encrypt_sgx_safe(pubkey, &bKey, &cipher, shortPubKey, prvkey, S, MAX_RECEIVER);
     clock_gettime(CLOCK_MONOTONIC, &finish);
     elapsed = (finish.tv_sec - start.tv_sec);
     elapsed += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    //time2 = clock();
-    {
-        //printf("--------------------\n");
-    //    printf("Cypher text :\n");
-    //    element_printf("c1 = %B\n", cypher.c1);
-    //    element_printf("c2 = %B\n", cypher.c2);
-    //    element_printf("c3 = %B\n", cypher.c3);
-        //printf("--------------------\n");
-    }
-    printf("--------Encryption END --------\n\n");
-    //printf("@time cost: %lfms\n\n ", 1000.0*(time2-time1)/CLOCKS_PER_SEC);
+    printf("BDCST KEY : ");
+    print_key(bKey);
+
+
+    UserPrivateKey usr13PriKey;
+    extract_sgx_safe(prvkey, usr13PriKey, "test13@mail.com");
+
+    BroadcastKey decryptedBroadcastKey;
+    decrypt_sgx_safe(&decryptedBroadcastKey, cipher, shortPubKey, prvkey,
+        usr13PriKey, "test13@mail.com", S, MAX_RECEIVER);
+    printf("DECRT KEY : ");
+    print_key(decryptedBroadcastKey);
     printf("TOTAL TIME : %f\n", elapsed);
-    return 0;
 
+    Decrypt(cipher, pubkey, usr13PriKey, "test13@mail.com", S, MAX_RECEIVER);
 
-    for (i = 0; i < MAX_RECEIVER; i++)
-    {
-        Extract(prvkey, idkey[i], S[i]);
-        printf("--------Decryption S%d--------\n", i+1);
-        time1 = clock();
-        if (Decrypt(&plain, cipher, pubkey, idkey[i], S[i], S, MAX_RECEIVER))
-        {
-            printf("ID: %s is not a member of the receiver set.\n", S[i]);
-            break;
-        }
-        {
-
-            time2 = clock();
-            //printf("--------------------\n");
-            printf("Plain text :\n");
-            element_printf("m = %B\n", plain);
-            //printf("--------------------\n");
-        }
-        printf("--------Decryption S%d--------\n", i+1);
-        printf("@time cost: %lfms\n\n ", 1000.0*(time2-time1)/CLOCKS_PER_SEC);
-        //getchar();
-    }
-    return 0;
-
-    {
-        Extract(prvkey, idkey[MAX_RECEIVER+1], Attacker);
-        printf("--------BAD Decryption--------\n");
-        if (Decrypt(&plain, cipher, pubkey, idkey[MAX_RECEIVER+1], S[2], S, MAX_RECEIVER))
-        {
-            printf("ID: %s is not a member of the receiver set.\n", S[i]);
-
-        }
-        else
-        {
-            //printf("--------------------\n");
-            printf("Plain text :\n");
-            element_printf("m = %B\n", plain);
-            //printf("--------------------\n");
-        }
-        printf("--------BAD Decryption--------\n");
-        //getchar();
-    }
-
-
-    //getchar();
     return 0;
 }

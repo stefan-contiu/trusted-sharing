@@ -1,125 +1,350 @@
+/*
+ *  Implementation of SP-IBBE,
+ *  i.e. Secured & Partitioned - Identity Based Broadcast Encryption.
+ *
+ *  Author: Stefan Contiu <stefan.contiu@u-bordeaux.fr>
+ *
+ *  Published under Apache v2 License:
+ *      https://www.apache.org/licenses/LICENSE-2.0.txt
+ */
+
 #include "ibbe.h"
 #include <openssl/sha.h>
 #include <pthread.h>
 #include <stdlib.h>
 #include <unistd.h>
-// note that stdlib is required for the sleep, remove when SGX
-
 
 pairing_t pairing;
 
-int Setup(PublicKey *puk, PrivateKey *prk, int argc, char** argv)
+int setup_sgx_safe(PublicKey *puk, ShortPublicKey *spuk, MasterSecretKey *msk, int argc, char** argv)
 {
     int i;
     element_t g, h;
     element_t w, v;
-    element_t r;
+    element_t gamma;
     element_t temp1;
     element_t *hRec;
 
-    /*init a pairing using system params*/
-    srand(time(NULL));
-    pbc_random_set_deterministic(rand());//����������
-    pbc_demo_pairing_init(pairing, argc, argv);
-    printf("Pairing initialized ...\n");
+    // load pairing from arguments
+    {
+        srand(time(NULL));
+        pbc_random_set_deterministic(rand());
+        pbc_demo_pairing_init(pairing, argc, argv);
+    }
 
     element_init_G1(g, pairing);
-    element_init_G1(h, pairing);
+    element_init_G2(h, pairing);
     element_init_G1(w, pairing);
     element_init_GT(v, pairing);
-    element_init_Zr(r, pairing);
+    element_init_Zr(gamma, pairing);
     element_init_Zr(temp1, pairing);
-    printf("Pairing initialized ...\n");
 
-    /*pick 2 generators in G*/
-    element_random(g);
-    element_random(h);
-    /*pick random value r in Zp*/
-    element_random(r);
-    printf("Pairing initialized ...\n");
-
-
-    element_pow_zn(w, g, r);    //w = g ^ r
-    element_pairing(v, g, h);   //v = e(g, h)
-    printf("Last    Pairing initialized ...\n");
-
-    element_pp_t g_pp;
-    element_pp_init(g_pp, r);
-    printf("Got here ...\n");
-
-    hRec = (element_t*)malloc(sizeof(element_t) * (MAX_RECEIVER+2));
-    mpz_t n;
-    mpz_init(n);
-    for (i = 0; i <= MAX_RECEIVER; i++)
+    // generate random values
     {
-        element_init_G1(hRec[i], pairing);
-        mpz_set_ui(n, (unsigned int)i);
-        element_pow_mpz(temp1, r, n);
-        //element_printf("%B\n", h);
-        //element_printf("%B\n", temp1);
-        element_pow_zn(hRec[i], h, temp1);
-        //element_printf("%B\n", hRec[i]);
-        //element_pp_pow_zn(hRec[i], temp1, g_pp);
+        element_random(g);
+        element_random(h);
+        element_random(gamma);
     }
-    /*h ^ r ^ (-1)*/
-    element_init_G1(hRec[i], pairing);
-    element_invert(temp1, r);
-    element_pow_zn(hRec[i], h, temp1);
-    /*cleaning*/
-    mpz_clear(n);
-    element_pp_clear(g_pp);
 
-    puk->h = hRec;
-    element_init_G1(puk->w, pairing);
-    element_init_GT(puk->v, pairing);
-    element_set(puk->w, w);
-    element_set(puk->v, v);
+    // compute w and v
+    {
+        element_pow_zn(w, g, gamma);
+        element_pairing(v, g, h);
+    }
 
-    element_init_G1(prk->g, pairing);
-    element_init_Zr(prk->r, pairing);
-    element_set(prk->g, g);
-    element_set(prk->r, r);
+    // compute public key h sequence
+    {
+        hRec = (element_t*)malloc(sizeof(element_t) * (MAX_RECEIVER+2));
+        mpz_t n;
+        mpz_init(n);
+        for (i = 0; i <= MAX_RECEIVER; i++)
+        {
+            element_init_G2(hRec[i], pairing);
+            mpz_set_ui(n, (unsigned int)i);
+            element_pow_mpz(temp1, gamma, n);
+            element_pow_zn(hRec[i], h, temp1);
+        }
+        mpz_clear(n);
 
+        // Most likely these commented lines are useless, will keep them until
+        // all tests w/ and w/out SGX are finalized, then remove!
+        /*h ^ r ^ (-1)*/
+        //element_init_G1(hRec[i], pairing);
+        //element_invert(temp1, r);
+        //element_pow_zn(hRec[i], h, temp1);
+        // ---- end commented lines
+
+        puk->h = hRec;
+        element_init_G1(puk->w, pairing);
+        element_init_GT(puk->v, pairing);
+        element_set(puk->w, w);
+        element_set(puk->v, v);
+    }
+
+    // define master secret key
+    {
+        element_init_G1(msk->g, pairing);
+        element_init_Zr(msk->gamma, pairing);
+        element_set(msk->g, g);
+        element_set(msk->gamma, gamma);
+    }
+
+    // define the short SGX safe public key
+    {
+        element_init_G1(spuk->w, pairing);
+        element_init_GT(spuk->v, pairing);
+        element_init_G1(spuk->h, pairing);
+        element_set(spuk->w, puk->w);
+        element_set(spuk->v, puk->v);
+        element_set(spuk->h, puk->h[0]);
+    }
+
+    // clean-up
     element_clear(h);
     element_clear(temp1);
 
     return 0;
 }
 
-int Extract(PrivateKey key, IdentityKey idkey, char* id)
+int extract_sgx_safe(MasterSecretKey msk, UserPrivateKey idkey, char* id)
 {
     element_t hid;
-    IdentityKey ikey;
-
     element_init_Zr(hid, pairing);
-    element_init_G1(ikey, pairing);
+    element_init_G1(idkey, pairing);
 
-    /***************************************/
-    /*how do we hash ID into an element in Zp?*/
-    //hash(hid, id);
-    {
-        printf("--------------------\n");
-        printf("Generating key for :");
-        printf("%s\n", id);
-        printf("--------------------\n");
-    }
+    // compute gamma + hash
     element_from_hash(hid, id, strlen(id));
-    /***************************************/
+    element_add(hid, hid, msk.gamma);
 
-    /*calculate SK = g ^ ((r + H(ID)) ^ -1)*/
-    element_add(hid, hid, key.r);
+    // invert and exponentiate g
     element_invert(hid, hid);
-    element_pow_zn(ikey, key.g, hid);
+    element_pow_zn(idkey, msk.g, hid);
 
     element_clear(hid);
+    return 0;
+}
 
-    element_init_G1(idkey, pairing);
-    element_set(idkey, ikey);
+
+int encrypt_sgx_safe(PublicKey key, BroadcastKey* bKey, Ciphertext *cipher,
+    ShortPublicKey pubKey, MasterSecretKey msk, char idSet[][MAX_STRING_LENGTH], int idCount)
+{
+    element_t k;
+    element_t c1, c2;
+    element_t product;
+    element_t hash;
+
+    element_init_Zr(k, pairing);
+    element_init_G1(c1, pairing);
+    element_init_G2(c2, pairing);
+    element_random(k);
+
+    // compute C1
+    {
+        element_pow_zn(c1, pubKey.w, k);
+        element_invert(c1, c1);
+        element_printf("C1 : %B\n", c1);
+    }
+
+    // compute C2
+    {
+        element_init_Zr(product, pairing);
+        element_set1(product);
+        for (int i = 0; i < idCount; i++)
+        {
+            // compute hash
+            element_init_Zr(hash, pairing);
+            element_from_hash(hash, idSet[i], strlen(idSet[i]));
+
+            // sum hash with gamma and multiply into product
+            element_add(hash, msk.gamma, hash);
+            element_mul(product, product, hash);
+        }
+
+        // multiply whole product by k
+        element_mul(product, product, k);
+
+        // raise h to product
+        element_pow_zn(c2, pubKey.h, product);
+        element_printf("C2 : %B\n", c2);
+    }
+
+    // compute BroadcastKey
+    {
+        element_t key_element;
+        element_init_GT(key_element, pairing);
+        element_pow_zn(key_element, pubKey.v, k);
+
+        // serialize to bytes and do a SHA
+        int generated_key_length = element_length_in_bytes(key_element);
+        unsigned char* key_element_bytes = malloc(generated_key_length);
+        element_to_bytes(key_element_bytes, key_element);
+        SHA256(key_element_bytes, strlen(key_element_bytes), *bKey);
+    }
+
+    element_init_G1(cipher->c1, pairing);
+    element_init_G1(cipher->c2, pairing);
+    element_set(cipher->c1, c1);
+    element_set(cipher->c2, c2);
+
+    // -------------------------
+    // Validate results against old Implementation
+    /*compute c2 = h ^ (k * (r+H(ID)...)*/
+    int idNum = idCount;
+    {
+        /*polynominal multiplication */
+        /***************************************/
+        int i, j;
+        element_t *hid;
+        element_t *polyA, *polyB;
+        hid = (element_t*)malloc(sizeof(element_t) * idNum);
+        polyA = (element_t*)malloc(sizeof(element_t) * (idNum+1));
+        polyB = (element_t*)malloc(sizeof(element_t) * (idNum+1));
+        for (i = 0; i < idNum+1; i++)
+        {
+            element_init_Zr(polyA[i], pairing);
+            element_set0(polyA[i]);
+            element_init_Zr(polyB[i], pairing);
+            element_set0(polyB[i]);
+            element_init_Zr(hid[i], pairing);
+            if (i < idNum)
+            {
+                unsigned char obuf[20];
+                element_from_hash(hid[i], idSet[i], strlen(idSet[i]));
+            }
+        }
+        /*calculation*/
+        element_set(polyA[0], hid[0]);
+        element_set1(polyA[1]);
+        for (i = 1; i < idNum; i++)
+        {
+            /*i-th polynomial*/
+            /*polyA * (r + H(ID))*/
+            element_set1(polyA[i+1]);
+            for (j = i; j >= 1; j--)
+            {
+                element_mul(polyB[j], polyA[j], hid[i]);
+                element_add(polyA[j], polyA[j-1], polyB[j]);
+                //element_printf("%B\n", polyA[j]);
+            }
+            element_mul(polyA[0], polyA[0], hid[i]);
+        }
+
+        /* old style exponentiation */
+        element_t old_temp1, old_temp2;
+        element_init_G1(old_temp1, pairing);
+        element_init_G1(old_temp2, pairing);
+        element_set1(old_temp1);
+        for (i = 0; i < idNum+1; i++)
+        {
+            element_pow_zn(old_temp2, key.h[i], polyA[i]);
+            element_mul(old_temp1, old_temp1, old_temp2);
+        }
+
+        element_t _c2;
+        element_init_G1(_c2, pairing);
+        element_pow_zn(_c2, old_temp1, k);
+        element_printf("O2 : %B\n", _c2);
+    }
+    // --------------------------
+
+    element_clear(k);
+    element_clear(c1);
+    element_clear(c2);
+    element_clear(hash);
+    element_clear(product);
 
     return 0;
 }
 
-int DestroySK(IdentityKey ikey)
+int decrypt_sgx_safe(BroadcastKey* bKey, Ciphertext cipher,
+    ShortPublicKey pubKey, MasterSecretKey msk, UserPrivateKey ikey,
+    char* id, char idSet[][MAX_STRING_LENGTH], int idCount)
+{
+    element_t e_1, e_2;
+    element_t sub_uni_exp;
+    element_t hash;
+    element_t p_hash, p_gamma_hash, p_term;
+    element_t h_exp;
+    element_t e1_hp;
+
+    element_init_GT(e_1, pairing);
+    element_init_GT(e_2, pairing);
+    element_init_Zr(sub_uni_exp, pairing);
+    element_init_Zr(h_exp, pairing);
+    element_init_G2(e1_hp, pairing);
+
+    // compute the p exponent used by the first pairing
+    {
+        element_init_Zr(p_hash, pairing);
+        element_init_Zr(p_gamma_hash, pairing);
+        element_init_Zr(p_term, pairing);
+        element_set1(p_hash);
+        element_set1(p_gamma_hash);
+        for (int i = 0; i < idCount; i++)
+        {
+            // exclude the current user
+            if (strcmp(id, idSet[i]) != 0)
+            {
+                // compute hash
+                element_init_Zr(hash, pairing);
+                element_from_hash(hash, idSet[i], strlen(idSet[i]));
+
+                // include hash in products
+                element_mul(p_hash, p_hash, hash);
+                element_add(p_term, hash, msk.gamma);
+                element_mul(p_gamma_hash, p_gamma_hash, p_term);
+            }
+        }
+        //element_printf("P_HSH : %B\n", p_hash);
+        //element_printf("PG_HS : %B\n", p_gamma_hash);
+
+        // multiply 1/gamma with (p_gamma_hash - p_hash)
+        element_sub(p_gamma_hash, p_gamma_hash, p_hash);
+        //element_printf("P_DIF : %B\n", p_gamma_hash);
+        element_set(h_exp, msk.gamma);
+        element_invert(h_exp, h_exp);
+        //element_printf("G_INV : %B\n", h_exp);
+        element_mul(h_exp, h_exp, p_gamma_hash);
+        //element_printf("P     : %B\n", h_exp);
+        //element_printf("SP-H  : %B\n", pubKey.h);
+
+        element_pow_zn(e1_hp, pubKey.h, h_exp);
+        //element_printf("H_EXP : %B\n", e1_hp);
+    }
+
+    // compute the product of the two pairings
+    {
+        element_pairing(e_1, cipher.c1, e1_hp);
+        element_pairing(e_2, ikey, cipher.c2);
+        element_mul(e_1, e_1, e_2);
+    }
+
+    // finally compute key, serialize to bytes and SHA
+    {
+        element_set(sub_uni_exp, p_hash);
+        element_invert(sub_uni_exp, sub_uni_exp);
+        element_pow_zn(e_1, e_1, sub_uni_exp);
+
+        // serialize to bytes and do a SHA
+        int generated_key_length = element_length_in_bytes(e_1);
+        unsigned char* key_element_bytes = malloc(generated_key_length);
+        element_to_bytes(key_element_bytes, e_1);
+        SHA256(key_element_bytes, strlen(key_element_bytes), *bKey);
+    }
+
+    // clean up
+    element_clear(e_1);
+    element_clear(e_2);
+    element_clear(sub_uni_exp);
+    element_clear(hash);
+    element_clear(p_hash);
+    element_clear(p_gamma_hash);
+    element_clear(p_term);
+    return 0;
+}
+
+
+int DestroySK(UserPrivateKey ikey)
 {
     element_clear(ikey);
     return 0;
@@ -166,26 +391,19 @@ void *exponentiate_by_partition(void *pargs)
             element_mul(*ptemp, *ptemp, thread_temp2);
         }
     }
-/*
 
-    for (int i = args->start; i <= args->end; i++)
-    {
-        element_pow_zn(thread_temp2, args->key.h[i], args->polyA[i]);
-        element_mul(*ptemp, *ptemp, thread_temp2);
-    }
-    */
     pthread_exit(ptemp);
     return (void*) ptemp;
 }
 
-int Encrypt(mpz_t message, Cipher *cipher, PublicKey key, char idSet[][MAX_STRING_LENGTH], int idNum)
+
+int Encrypt(element_t k, Ciphertext *cipher, PublicKey key, char idSet[][MAX_STRING_LENGTH], int idNum)
 {
-    element_t k;
+    //element_t k;
     element_t m;
     element_t c1, c2, c3;
     element_t temp1, temp2;
 
-    element_init_Zr(k, pairing);
     element_init_GT(m, pairing);
     element_init_G1(c1, pairing);
     element_init_G1(c2, pairing);
@@ -193,15 +411,8 @@ int Encrypt(mpz_t message, Cipher *cipher, PublicKey key, char idSet[][MAX_STRIN
     element_init_G1(temp1, pairing);
     element_init_G1(temp2, pairing);
 
-    element_random(k);
+    //element_random(k);
     //element_set_mpz(m, message);
-    element_random(m);
-    {
-        printf("--------------------\n");
-        printf("Plain text :\n");
-        element_printf("m = %B\n", m);
-        printf("--------------------\n");
-    }
 
     /*compute c1 = w ^ -k*/
     {
@@ -314,6 +525,7 @@ int Encrypt(mpz_t message, Cipher *cipher, PublicKey key, char idSet[][MAX_STRIN
 */
 
         /* Multithreaded exponentation */
+/*
         if (idNum > 299)
         {
             // it's worth doing parallel once groups get some users
@@ -357,7 +569,7 @@ int Encrypt(mpz_t message, Cipher *cipher, PublicKey key, char idSet[][MAX_STRIN
 
         clock_t time_exp_end = clock();
         printf("@linear exponentiations : %lu\n ", time_exp_end - time_exp);
-
+*/
         element_pow_zn(c2, temp1, k);
     //    printf("c2 second half computed !!!!\n");
 
@@ -376,10 +588,10 @@ int Encrypt(mpz_t message, Cipher *cipher, PublicKey key, char idSet[][MAX_STRIN
 
     element_init_G1(cipher->c1, pairing);
     element_init_G1(cipher->c2, pairing);
-    element_init_GT(cipher->c3, pairing);
+    //element_init_GT(cipher->c3, pairing);
     element_set(cipher->c1, c1);
     element_set(cipher->c2, c2);
-    element_set(cipher->c3, c3);
+    //element_set(cipher->c3, c3);
 
     element_clear(k);
     element_clear(m);
@@ -389,8 +601,15 @@ int Encrypt(mpz_t message, Cipher *cipher, PublicKey key, char idSet[][MAX_STRIN
     return 0;
 }
 
+void print_key_2(unsigned char *h)
+{
+    for(int i=0; i<32; i++)
+        printf("%02X", h[i]);
+    printf("\n");
+}
 
-int Decrypt(Plain *plain, Cipher cipher, PublicKey key, IdentityKey ikey, char* id, char idSet[][MAX_STRING_LENGTH], int idNum)
+
+int Decrypt(Ciphertext cipher, PublicKey key, UserPrivateKey ikey, char* id, char idSet[][MAX_STRING_LENGTH], int idNum)
 {
     int i, j;
     int mark = 1;
@@ -432,7 +651,6 @@ int Decrypt(Plain *plain, Cipher cipher, PublicKey key, IdentityKey ikey, char* 
     element_init_GT(temp1, pairing);
     element_init_GT(temp2, pairing);
     element_init_Zr(ztemp, pairing);
-    element_init_GT(*plain, pairing);
 
     element_t *hid;
     {
@@ -505,7 +723,16 @@ int Decrypt(Plain *plain, Cipher cipher, PublicKey key, IdentityKey ikey, char* 
     /*K*/
     element_pow_zn(temp1, temp1, ztemp);
 
-    element_div(*plain, cipher.c3, temp1);
+
+    // serialize to bytes and do a SHA
+    int generated_key_length = element_length_in_bytes(temp1);
+    unsigned char* key_element_bytes = malloc(generated_key_length);
+    element_to_bytes(key_element_bytes, temp1);
+    BroadcastKey bKey;
+    SHA256(key_element_bytes, strlen(key_element_bytes), bKey);
+    printf("OLDD KEY : "); print_key_2(bKey);
+
+    //element_div(*plain, cipher.c3, temp1);
 
     //free(hid);
     element_clear(htemp1);
