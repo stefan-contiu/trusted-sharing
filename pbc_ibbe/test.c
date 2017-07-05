@@ -33,32 +33,36 @@ int main(int argc, char** argv)
 
     setup_sgx_safe(&pubkey, &shortPubKey, &prvkey, argc, argv);
 
-    Ciphertext cipher;
-    BroadcastKey bKey;
-
-    struct timespec start, finish;
-    double elapsed;
-    clock_gettime(CLOCK_MONOTONIC, &start);
-
-    encrypt_sgx_safe(pubkey, &bKey, &cipher, shortPubKey, prvkey, S, MAX_RECEIVER);
-    clock_gettime(CLOCK_MONOTONIC, &finish);
-    elapsed = (finish.tv_sec - start.tv_sec);
-    elapsed += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf("BDCST KEY : ");
-    print_key(bKey);
-
-
     UserPrivateKey usr13PriKey;
     extract_sgx_safe(prvkey, usr13PriKey, "test13@mail.com");
 
-    BroadcastKey decryptedBroadcastKey;
-    decrypt_sgx_safe(&decryptedBroadcastKey, cipher, shortPubKey, prvkey,
-        usr13PriKey, "test13@mail.com", S, MAX_RECEIVER);
-    printf("DECRT KEY : ");
-    print_key(decryptedBroadcastKey);
-    printf("TOTAL TIME : %f\n", elapsed);
+    for (int test=0; test < 5; test++)
+    {
+        Ciphertext cipher;
+        BroadcastKey bKey;
 
-    Decrypt(cipher, pubkey, usr13PriKey, "test13@mail.com", S, MAX_RECEIVER);
+        encrypt_sgx_safe(&bKey, &cipher, shortPubKey, prvkey, S, MAX_RECEIVER);
+        printf("\nBROADCAST KEY : ");
+        print_key(bKey);
+
+        BroadcastKey decryptedBroadcastKey;
+        decrypt_sgx_safe(&decryptedBroadcastKey, cipher, shortPubKey, prvkey,
+            usr13PriKey, "test13@mail.com", S, MAX_RECEIVER);
+        printf("SGX DECR. KEY : ");
+        print_key(decryptedBroadcastKey);
+
+        BroadcastKey oldStyleBroadcastKey;
+        decrypt_user_no_optimizations(&oldStyleBroadcastKey, cipher, pubkey,
+            usr13PriKey, "test13@mail.com", S, MAX_RECEIVER);
+        printf("OLD DECR. KEY : ");
+        print_key(oldStyleBroadcastKey);
+
+        BroadcastKey userBroadcastKey;
+        decrypt_user(1, &userBroadcastKey, cipher, pubkey,
+            usr13PriKey, "test13@mail.com", S, MAX_RECEIVER);
+        printf("USR DECR. KEY : ");
+        print_key(userBroadcastKey);
+    }
 
     return 0;
 }

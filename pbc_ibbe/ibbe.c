@@ -97,6 +97,8 @@ int setup_sgx_safe(PublicKey *puk, ShortPublicKey *spuk, MasterSecretKey *msk, i
         element_set(spuk->w, puk->w);
         element_set(spuk->v, puk->v);
         element_set(spuk->h, puk->h[0]);
+        int hlen = element_length_in_bytes(puk->h[0]);
+        printf("Pub key element size (bytes): %d\n", hlen);
     }
 
     // clean-up
@@ -125,7 +127,7 @@ int extract_sgx_safe(MasterSecretKey msk, UserPrivateKey idkey, char* id)
 }
 
 
-int encrypt_sgx_safe(PublicKey key, BroadcastKey* bKey, Ciphertext *cipher,
+int encrypt_sgx_safe(BroadcastKey* bKey, Ciphertext *cipher,
     ShortPublicKey pubKey, MasterSecretKey msk, char idSet[][MAX_STRING_LENGTH], int idCount)
 {
     element_t k;
@@ -142,7 +144,7 @@ int encrypt_sgx_safe(PublicKey key, BroadcastKey* bKey, Ciphertext *cipher,
     {
         element_pow_zn(c1, pubKey.w, k);
         element_invert(c1, c1);
-        element_printf("C1 : %B\n", c1);
+        //element_printf("C1 : %B\n", c1);
     }
 
     // compute C2
@@ -165,7 +167,7 @@ int encrypt_sgx_safe(PublicKey key, BroadcastKey* bKey, Ciphertext *cipher,
 
         // raise h to product
         element_pow_zn(c2, pubKey.h, product);
-        element_printf("C2 : %B\n", c2);
+        //element_printf("C2 : %B\n", c2);
     }
 
     // compute BroadcastKey
@@ -178,74 +180,14 @@ int encrypt_sgx_safe(PublicKey key, BroadcastKey* bKey, Ciphertext *cipher,
         int generated_key_length = element_length_in_bytes(key_element);
         unsigned char* key_element_bytes = malloc(generated_key_length);
         element_to_bytes(key_element_bytes, key_element);
-        SHA256(key_element_bytes, strlen(key_element_bytes), *bKey);
+        SHA256(key_element_bytes, generated_key_length, *bKey);
+        free(key_element_bytes);
     }
 
     element_init_G1(cipher->c1, pairing);
     element_init_G1(cipher->c2, pairing);
     element_set(cipher->c1, c1);
     element_set(cipher->c2, c2);
-
-    // -------------------------
-    // Validate results against old Implementation
-    /*compute c2 = h ^ (k * (r+H(ID)...)*/
-    int idNum = idCount;
-    {
-        /*polynominal multiplication */
-        /***************************************/
-        int i, j;
-        element_t *hid;
-        element_t *polyA, *polyB;
-        hid = (element_t*)malloc(sizeof(element_t) * idNum);
-        polyA = (element_t*)malloc(sizeof(element_t) * (idNum+1));
-        polyB = (element_t*)malloc(sizeof(element_t) * (idNum+1));
-        for (i = 0; i < idNum+1; i++)
-        {
-            element_init_Zr(polyA[i], pairing);
-            element_set0(polyA[i]);
-            element_init_Zr(polyB[i], pairing);
-            element_set0(polyB[i]);
-            element_init_Zr(hid[i], pairing);
-            if (i < idNum)
-            {
-                unsigned char obuf[20];
-                element_from_hash(hid[i], idSet[i], strlen(idSet[i]));
-            }
-        }
-        /*calculation*/
-        element_set(polyA[0], hid[0]);
-        element_set1(polyA[1]);
-        for (i = 1; i < idNum; i++)
-        {
-            /*i-th polynomial*/
-            /*polyA * (r + H(ID))*/
-            element_set1(polyA[i+1]);
-            for (j = i; j >= 1; j--)
-            {
-                element_mul(polyB[j], polyA[j], hid[i]);
-                element_add(polyA[j], polyA[j-1], polyB[j]);
-                //element_printf("%B\n", polyA[j]);
-            }
-            element_mul(polyA[0], polyA[0], hid[i]);
-        }
-
-        /* old style exponentiation */
-        element_t old_temp1, old_temp2;
-        element_init_G1(old_temp1, pairing);
-        element_init_G1(old_temp2, pairing);
-        element_set1(old_temp1);
-        for (i = 0; i < idNum+1; i++)
-        {
-            element_pow_zn(old_temp2, key.h[i], polyA[i]);
-            element_mul(old_temp1, old_temp1, old_temp2);
-        }
-
-        element_t _c2;
-        element_init_G1(_c2, pairing);
-        element_pow_zn(_c2, old_temp1, k);
-        element_printf("O2 : %B\n", _c2);
-    }
-    // --------------------------
 
     element_clear(k);
     element_clear(c1);
@@ -295,21 +237,13 @@ int decrypt_sgx_safe(BroadcastKey* bKey, Ciphertext cipher,
                 element_mul(p_gamma_hash, p_gamma_hash, p_term);
             }
         }
-        //element_printf("P_HSH : %B\n", p_hash);
-        //element_printf("PG_HS : %B\n", p_gamma_hash);
 
         // multiply 1/gamma with (p_gamma_hash - p_hash)
         element_sub(p_gamma_hash, p_gamma_hash, p_hash);
-        //element_printf("P_DIF : %B\n", p_gamma_hash);
         element_set(h_exp, msk.gamma);
         element_invert(h_exp, h_exp);
-        //element_printf("G_INV : %B\n", h_exp);
         element_mul(h_exp, h_exp, p_gamma_hash);
-        //element_printf("P     : %B\n", h_exp);
-        //element_printf("SP-H  : %B\n", pubKey.h);
-
         element_pow_zn(e1_hp, pubKey.h, h_exp);
-        //element_printf("H_EXP : %B\n", e1_hp);
     }
 
     // compute the product of the two pairings
@@ -329,7 +263,8 @@ int decrypt_sgx_safe(BroadcastKey* bKey, Ciphertext cipher,
         int generated_key_length = element_length_in_bytes(e_1);
         unsigned char* key_element_bytes = malloc(generated_key_length);
         element_to_bytes(key_element_bytes, e_1);
-        SHA256(key_element_bytes, strlen(key_element_bytes), *bKey);
+        SHA256(key_element_bytes, generated_key_length, *bKey);
+        free(key_element_bytes);
     }
 
     // clean up
@@ -343,12 +278,117 @@ int decrypt_sgx_safe(BroadcastKey* bKey, Ciphertext cipher,
     return 0;
 }
 
-
-int DestroySK(UserPrivateKey ikey)
+int decrypt_user_no_optimizations(BroadcastKey* bKey, Ciphertext cipher, PublicKey key, UserPrivateKey ikey, char* id, char idSet[][MAX_STRING_LENGTH], int idNum)
 {
-    element_clear(ikey);
+    int i, j;
+    int mark = 1;
+    char **decryptUsrSet = (char**)malloc(sizeof(char*) * (idNum - 1));
+    for (i = 0, j = 0; i < idNum; i++)
+    {
+        if (strcmp(id, idSet[i]) != 0)
+        {
+            decryptUsrSet[j] = (char*)malloc(sizeof(char) * MAX_STRING_LENGTH);
+            memcpy(decryptUsrSet[j], idSet[i], MAX_STRING_LENGTH);
+            j++;
+        }
+    }
+
+    element_t htemp1, htemp2;
+    element_t temp1, temp2;
+    element_t ztemp;
+
+    element_init_G1(htemp1, pairing);
+    element_init_G1(htemp2, pairing);
+    element_init_GT(temp1, pairing);
+    element_init_GT(temp2, pairing);
+    element_init_Zr(ztemp, pairing);
+
+    element_t *hid;
+    {
+        /*polynominal multiplication */
+        /***************************************/
+        element_t *polyA, *polyB;
+        polyA = (element_t*)malloc(sizeof(element_t) * idNum);
+        polyB = (element_t*)malloc(sizeof(element_t) * idNum);
+        hid = (element_t*)malloc(sizeof(element_t) * idNum-1);
+        /*initialization*/
+        for (i = 0; i < idNum; i++)
+        {
+            element_init_Zr(polyA[i], pairing);
+            element_set0(polyA[i]);
+            element_init_Zr(polyB[i], pairing);
+            element_set0(polyB[i]);
+            element_init_Zr(hid[i], pairing);
+            if (i < idNum - 1)
+                element_from_hash(hid[i], decryptUsrSet[i], strlen(decryptUsrSet[i]));
+        }
+        /*calculation*/
+        if (idNum == 1)
+        {
+            /*dealing with only 1 receiver*/
+            element_set(htemp1, key.h[MAX_RECEIVER+1]);
+        }
+        else
+        {
+            element_set(polyA[0], hid[0]);
+            element_set1(polyA[1]);
+            for (i = 1; i < idNum - 1; i++)
+            {
+                /*i-th polynomial*/
+                /*polyA * (r + H(ID))*/
+                element_set1(polyA[i+1]);
+                for (j = i; j >= 1; j--)
+                {
+                    element_mul(polyB[j], polyA[j], hid[i]);
+                    element_add(polyA[j], polyA[j-1], polyB[j]);
+                }
+                element_mul(polyA[0], polyA[0], hid[i]);
+            }
+            element_set1(htemp1);
+            for (i = 0; i < idNum-1; i++)
+            {
+                element_pow_zn(htemp2, key.h[i], polyA[i+1]);
+                element_mul(htemp1, htemp1, htemp2);
+            }
+        }
+        /*
+        free(polyA);
+        free(polyB);
+        */
+    }
+
+    element_pairing(temp1, cipher.c1, htemp1);
+    element_pairing(temp2, ikey, cipher.c2);
+    element_mul(temp1, temp1, temp2);
+
+    element_set1(ztemp);
+    for (i = 0; i < idNum - 1; i++)
+    {
+        element_mul(ztemp, ztemp, hid[i]);
+    }
+    element_invert(ztemp, ztemp);
+
+    /* K */
+    element_pow_zn(temp1, temp1, ztemp);
+
+    // serialize to bytes and do a SHA
+    int generated_key_length = element_length_in_bytes(temp1);
+    unsigned char* key_element_bytes = malloc(generated_key_length);
+    element_to_bytes(key_element_bytes, temp1);
+    SHA256(key_element_bytes, generated_key_length, *bKey);
+    free(key_element_bytes);
+
+    free(hid);
+    element_clear(htemp1);
+    element_clear(htemp2);
+    element_clear(temp1);
+    element_clear(temp2);
+    element_clear(ztemp);
+
     return 0;
 }
+
+// --- MULTITHREADING OPTIMIZATIONS ---
 
 struct exp_part_struct {
     int start;
@@ -374,6 +414,7 @@ void *exponentiate_by_partition(void *pargs)
     //element_set1(thread_temp1);
 
     int i;
+    int max = 0;
     for (i = args->start; i <= args->end - 3; i+=3)
     {
         element_pow3_zn(thread_temp2,
@@ -381,6 +422,7 @@ void *exponentiate_by_partition(void *pargs)
             args->key.h[i+1], args->polyA[i+1],
             args->key.h[i+2], args->polyA[i+2]);
         element_mul(*ptemp, *ptemp, thread_temp2);
+        max = i > max ? i : max;
     }
     // exponentiate and multiply any leftovers
     if (i <= args->end)
@@ -389,17 +431,172 @@ void *exponentiate_by_partition(void *pargs)
         {
             element_pow_zn(thread_temp2, args->key.h[j], args->polyA[j]);
             element_mul(*ptemp, *ptemp, thread_temp2);
+            max = i > max ? i : max;
         }
     }
 
+    printf("Max %d\n", max);
     pthread_exit(ptemp);
     return (void*) ptemp;
 }
 
-
-int Encrypt(element_t k, Ciphertext *cipher, PublicKey key, char idSet[][MAX_STRING_LENGTH], int idNum)
+int decrypt_user(int sw, BroadcastKey* bKey, Ciphertext cipher, PublicKey key, UserPrivateKey ikey, char* id, char idSet[][MAX_STRING_LENGTH], int idCount)
 {
-    //element_t k;
+    int i, j;
+    int mark = 1;
+    char **decryptUsrSet = (char**)malloc(sizeof(char*) * (idCount - 1));
+    for (i = 0, j = 0; i < idCount; i++)
+    {
+        if (strcmp(id, idSet[i]) != 0)
+        {
+            decryptUsrSet[j] = (char*)malloc(sizeof(char) * MAX_STRING_LENGTH);
+            memcpy(decryptUsrSet[j], idSet[i], MAX_STRING_LENGTH);
+            j++;
+        }
+    }
+
+    element_t htemp1, htemp2;
+    element_t temp1, temp2;
+    element_t ztemp;
+
+    element_init_G1(htemp1, pairing);
+    element_init_G1(htemp2, pairing);
+    element_init_GT(temp1, pairing);
+    element_init_GT(temp2, pairing);
+    element_init_Zr(ztemp, pairing);
+
+    element_t *hid;
+    {
+        /*polynominal multiplication */
+        /***************************************/
+        element_t *polyA, *polyB;
+        polyA = (element_t*)malloc(sizeof(element_t) * idCount);
+        polyB = (element_t*)malloc(sizeof(element_t) * idCount);
+        hid = (element_t*)malloc(sizeof(element_t) * idCount - 1);
+        /*initialization*/
+        for (i = 0; i < idCount; i++)
+        {
+            element_init_Zr(polyA[i], pairing);
+            element_set0(polyA[i]);
+            element_init_Zr(polyB[i], pairing);
+            element_set0(polyB[i]);
+            element_init_Zr(hid[i], pairing);
+            if (i < idCount - 1)
+                element_from_hash(hid[i], decryptUsrSet[i], strlen(decryptUsrSet[i]));
+        }
+
+        // I think the bellow if can be removed
+        /*calculation*/
+        if (idCount == 1)
+        {
+            /*dealing with only 1 receiver*/
+            element_set(htemp1, key.h[MAX_RECEIVER+1]);
+        }
+        else
+        {
+            element_set(polyA[0], hid[0]);
+            element_set1(polyA[1]);
+            for (i = 1; i < idCount - 1; i++)
+            {
+                /*i-th polynomial*/
+                /*polyA * (r + H(ID))*/
+                element_set1(polyA[i+1]);
+                for (j = i; j >= 1; j--)
+                {
+                    element_mul(polyB[j], polyA[j], hid[i]);
+                    element_add(polyA[j], polyA[j-1], polyB[j]);
+                }
+                element_mul(polyA[0], polyA[0], hid[i]);
+            }
+            element_set1(htemp1);
+
+            // multithreading
+            if (sw == 1)
+            {
+                int idNum = idCount - 2;
+                int exp_per_partition = idNum / THREADS_COUNT;
+
+                pthread_t tid[THREADS_COUNT];
+                for(int thread_idx = 0; thread_idx < THREADS_COUNT; thread_idx++)
+                {
+                    // compute the partition of exponentiations
+                    struct exp_part_struct* args= malloc (sizeof (struct exp_part_struct));
+                    args->start = thread_idx * exp_per_partition;
+                    args->end = args->start + exp_per_partition - 1;
+                    args->key = key;
+                    args->polyA = polyA;
+                    if (thread_idx == THREADS_COUNT - 1)
+                    {
+                        args->end += 2;
+                    }
+
+                    pthread_create(&tid[thread_idx], NULL, exponentiate_by_partition, (void *)args);
+                }
+
+                element_t result;
+                element_init_G1(result, pairing);
+                element_set1(result);
+                // wait that threads are complete
+                for(int thread_idx = 0; thread_idx < THREADS_COUNT; thread_idx++)
+                {
+                    void* partition_result;
+                    pthread_join(tid[thread_idx], &partition_result);
+                    element_mul(htemp1, htemp1, *(element_t*)partition_result);
+                }
+
+                //element_printf("THR TEMP1 : %B\n", result);
+            }
+            else
+            {
+                for (i = 0; i < idCount-1; i++)
+                {
+                    element_pow_zn(htemp2, key.h[i], polyA[i+1]);
+                    element_mul(htemp1, htemp1, htemp2);
+                    printf("USING %d\n", i);
+                }
+            }
+        }
+        /*
+        free(polyA);
+        free(polyB);
+        */
+    }
+
+    element_pairing(temp1, cipher.c1, htemp1);
+    element_pairing(temp2, ikey, cipher.c2);
+    element_mul(temp1, temp1, temp2);
+
+    element_set1(ztemp);
+    for (i = 0; i < idCount - 1; i++)
+    {
+        element_mul(ztemp, ztemp, hid[i]);
+    }
+    element_invert(ztemp, ztemp);
+
+    /* K */
+    element_pow_zn(temp1, temp1, ztemp);
+
+    // serialize to bytes and do a SHA
+    int generated_key_length = element_length_in_bytes(temp1);
+    unsigned char* key_element_bytes = malloc(generated_key_length);
+    element_to_bytes(key_element_bytes, temp1);
+    SHA256(key_element_bytes, generated_key_length, *bKey);
+    free(key_element_bytes);
+
+    free(hid);
+    element_clear(htemp1);
+    element_clear(htemp2);
+    element_clear(temp1);
+    element_clear(temp2);
+    element_clear(ztemp);
+
+    return 0;
+}
+
+
+int Encrypt(Ciphertext *cipher, PublicKey key, char idSet[][MAX_STRING_LENGTH], int idNum)
+{
+    element_t k;
     element_t m;
     element_t c1, c2, c3;
     element_t temp1, temp2;
@@ -597,149 +794,6 @@ int Encrypt(element_t k, Ciphertext *cipher, PublicKey key, char idSet[][MAX_STR
     element_clear(m);
     element_clear(temp1);
     element_clear(temp2);
-
-    return 0;
-}
-
-void print_key_2(unsigned char *h)
-{
-    for(int i=0; i<32; i++)
-        printf("%02X", h[i]);
-    printf("\n");
-}
-
-
-int Decrypt(Ciphertext cipher, PublicKey key, UserPrivateKey ikey, char* id, char idSet[][MAX_STRING_LENGTH], int idNum)
-{
-    int i, j;
-    int mark = 1;
-    char **SubSet;
-
-    for (i = 0; i < idNum; i++)
-    {
-        /*check if id is a memeber of idSet*/
-        if (strcmp(id, idSet[i]) == 0)
-        {
-            mark = 0;
-            break;
-        }
-    }
-    if (mark)
-    {
-        printf("%s is not a sub member of IDSet\n", id);
-        return 1;
-    }
-    mark = i;
-    /*generate SubSet which excludes id*/
-    SubSet = (char**)malloc(sizeof(char*) * (idNum - 1));
-    for (i = 0, j = 0; i < idNum; i++)
-    {
-        if (i == mark)
-            continue;
-        SubSet[j] = (char*)malloc(sizeof(char) * MAX_STRING_LENGTH);
-        memcpy(SubSet[j], idSet[i], MAX_STRING_LENGTH);
-        //printf("%dth exclusive member: %s\n", j+1, SubSet[j]);
-        j++;
-    }
-
-    element_t htemp1, htemp2;
-    element_t temp1, temp2;
-    element_t ztemp;
-
-    element_init_G1(htemp1, pairing);
-    element_init_G1(htemp2, pairing);
-    element_init_GT(temp1, pairing);
-    element_init_GT(temp2, pairing);
-    element_init_Zr(ztemp, pairing);
-
-    element_t *hid;
-    {
-        /*polynominal multiplication */
-        /***************************************/
-        element_t *polyA, *polyB;
-        polyA = (element_t*)malloc(sizeof(element_t) * idNum);
-        polyB = (element_t*)malloc(sizeof(element_t) * idNum);
-        hid = (element_t*)malloc(sizeof(element_t) * idNum-1);
-        /*initialization*/
-        for (i = 0; i < idNum; i++)
-        {
-            element_init_Zr(polyA[i], pairing);
-            element_set0(polyA[i]);
-            element_init_Zr(polyB[i], pairing);
-            element_set0(polyB[i]);
-            element_init_Zr(hid[i], pairing);
-            if (i < idNum - 1)
-                element_from_hash(hid[i], SubSet[i], strlen(SubSet[i]));
-        }
-        /*calculation*/
-        if (idNum == 1)
-        {
-            /*dealing with only 1 receiver*/
-            element_set(htemp1, key.h[MAX_RECEIVER+1]);
-        }
-        else
-        {
-            element_set(polyA[0], hid[0]);
-            element_set1(polyA[1]);
-            for (i = 1; i < idNum - 1; i++)
-            {
-                /*i-th polynomial*/
-                /*polyA * (r + H(ID))*/
-                element_set1(polyA[i+1]);
-                for (j = i; j >= 1; j--)
-                {
-                    element_mul(polyB[j], polyA[j], hid[i]);
-                    element_add(polyA[j], polyA[j-1], polyB[j]);
-                }
-                element_mul(polyA[0], polyA[0], hid[i]);
-            }
-            element_set1(htemp1);
-            for (i = 0; i < idNum-1; i++)
-            {
-                // TODO : uncomment this line
-                element_pow_zn(htemp2, key.h[i], polyA[i+1]);
-                element_mul(htemp1, htemp1, htemp2);
-            }
-        }
-        /*
-        free(polyA);
-        free(polyB);
-        */
-    }
-
-    element_pairing(temp1, cipher.c1, htemp1);
-    element_pairing(temp2, ikey, cipher.c2);
-    element_mul(temp1, temp1, temp2);
-
-    // todo : this would have to be fixed as it assumes that idNum-1 is the
-    // element we exlude from the set, or not?
-    element_set1(ztemp);
-    for (i = 0; i < idNum - 1; i++)
-    {
-        element_mul(ztemp, ztemp, hid[i]);
-    }
-    element_invert(ztemp, ztemp);
-
-    /*K*/
-    element_pow_zn(temp1, temp1, ztemp);
-
-
-    // serialize to bytes and do a SHA
-    int generated_key_length = element_length_in_bytes(temp1);
-    unsigned char* key_element_bytes = malloc(generated_key_length);
-    element_to_bytes(key_element_bytes, temp1);
-    BroadcastKey bKey;
-    SHA256(key_element_bytes, strlen(key_element_bytes), bKey);
-    printf("OLDD KEY : "); print_key_2(bKey);
-
-    //element_div(*plain, cipher.c3, temp1);
-
-    //free(hid);
-    element_clear(htemp1);
-    element_clear(htemp2);
-    element_clear(temp1);
-    element_clear(temp2);
-    element_clear(ztemp);
 
     return 0;
 }
