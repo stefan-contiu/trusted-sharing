@@ -5,7 +5,7 @@
 #include <time.h>
 #include <string.h>
 
-#define MAX_RECEIVER 100
+#define MAX_RECEIVER 1000
 #define MAX_STRING_LENGTH 20
 #define THREADS_COUNT 8
 
@@ -46,7 +46,7 @@ int decrypt_sgx_safe(BroadcastKey* bKey, Ciphertext cipher,
     char* id, char idSet[][MAX_STRING_LENGTH], int idCount);
 
 /* NON-SGX METHODS - FOR USER USE */
-int decrypt_user(int sw, BroadcastKey* bKey,
+int decrypt_user(BroadcastKey* bKey,
     Ciphertext cipher, PublicKey key, UserPrivateKey ikey,
     char* id, char idSet[][MAX_STRING_LENGTH], int idCount);
 

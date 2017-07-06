@@ -29,7 +29,6 @@ int main(int argc, char** argv)
     PublicKey pubkey;
     MasterSecretKey prvkey;
     ShortPublicKey shortPubKey;
-    //UserPrivateKey idkey[MAX_RECEIVER+1];
 
     setup_sgx_safe(&pubkey, &shortPubKey, &prvkey, argc, argv);
 
@@ -58,7 +57,7 @@ int main(int argc, char** argv)
         print_key(oldStyleBroadcastKey);
 
         BroadcastKey userBroadcastKey;
-        decrypt_user(1, &userBroadcastKey, cipher, pubkey,
+        decrypt_user(&userBroadcastKey, cipher, pubkey,
             usr13PriKey, "test13@mail.com", S, MAX_RECEIVER);
         printf("USR DECR. KEY : ");
         print_key(userBroadcastKey);
