@@ -190,7 +190,65 @@ int encrypt_sgx_safe(BroadcastKey* bKey, Ciphertext *cipher,
     return 0;
 }
 
+
 int decrypt_sgx_safe(BroadcastKey* bKey, Ciphertext cipher,
+    ShortPublicKey pubKey, MasterSecretKey msk,
+    char idSet[][MAX_STRING_LENGTH], int idCount)
+{
+    element_t e_1, e_2;
+    element_t product, hash;
+
+    element_init_GT(e_1, pairing);
+    element_init_GT(e_2, pairing);
+
+    // compute the exponent
+    {
+        element_init_Zr(product, pairing);
+        element_set1(product);
+        for (int i = 0; i < idCount; i++)
+        {
+            // compute hash
+            element_init_Zr(hash, pairing);
+            element_from_hash(hash, idSet[i], strlen(idSet[i]));
+
+            // sum hash with gamma and multiply into product
+            element_add(hash, msk.gamma, hash);
+            element_mul(product, product, hash);
+        }
+
+        element_sub(product, product, msk.gamma);
+        element_invert(product, product);
+    }
+
+    // compute the pairings
+    {
+        element_pairing(e_1, cipher.c1, pubKey.h);
+        element_pairing(e_2, msk.g, cipher.c2);
+        element_mul(e_1, e_1, e_2);
+    }
+
+    // compute key
+    {
+        element_pow_zn(e_1, e_1, product);
+
+        // serialize to bytes and do a SHA
+        int generated_key_length = element_length_in_bytes(e_1);
+        unsigned char* key_element_bytes = malloc(generated_key_length);
+        element_to_bytes(key_element_bytes, e_1);
+        SHA256(key_element_bytes, generated_key_length, *bKey);
+        free(key_element_bytes);
+    }
+
+    // clean-up
+    {
+        element_clear(e_1);
+        element_clear(e_2);
+        element_clear(product);
+        element_clear(hash);
+    }
+}
+
+int decrypt_with_key_sgx_safe(BroadcastKey* bKey, Ciphertext cipher,
     ShortPublicKey pubKey, MasterSecretKey msk, UserPrivateKey ikey,
     char* id, char idSet[][MAX_STRING_LENGTH], int idCount)
 {
@@ -297,7 +355,7 @@ int decrypt_user_no_optimizations(BroadcastKey* bKey, Ciphertext cipher, PublicK
 
     element_t *hid;
     {
-        /*polynominal multiplication */
+        /* polynominal multiplication */
         /***************************************/
         element_t *polyA, *polyB;
         polyA = (element_t*)malloc(sizeof(element_t) * idNum);

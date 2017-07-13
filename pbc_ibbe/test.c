@@ -44,8 +44,15 @@ int main(int argc, char** argv)
         printf("\nBROADCAST KEY : ");
         print_key(bKey);
 
+        BroadcastKey adminBroadcastKey;
+        decrypt_sgx_safe(&adminBroadcastKey, cipher, shortPubKey, prvkey,
+            S, MAX_RECEIVER);
+        printf("ADM DECR. KEY : ");
+        print_key(adminBroadcastKey);
+
+
         BroadcastKey decryptedBroadcastKey;
-        decrypt_sgx_safe(&decryptedBroadcastKey, cipher, shortPubKey, prvkey,
+        decrypt_with_key_sgx_safe(&decryptedBroadcastKey, cipher, shortPubKey, prvkey,
             usr13PriKey, "test13@mail.com", S, MAX_RECEIVER);
         printf("SGX DECR. KEY : ");
         print_key(decryptedBroadcastKey);
