@@ -16,7 +16,7 @@
 
 pairing_t pairing;
 
-int setup_sgx_safe(PublicKey *puk, ShortPublicKey *spuk, MasterSecretKey *msk, int argc, char** argv)
+int setup_sgx_safe(PublicKey *puk, ShortPublicKey *spuk, MasterSecretKey *msk, int max_group_size, int argc, char** argv)
 {
     int i;
     element_t g, h;
@@ -54,10 +54,10 @@ int setup_sgx_safe(PublicKey *puk, ShortPublicKey *spuk, MasterSecretKey *msk, i
 
     // compute public key h sequence
     {
-        hRec = (element_t*)malloc(sizeof(element_t) * (MAX_RECEIVER+2));
+        hRec = (element_t*)malloc(sizeof(element_t) * (max_group_size + 2));
         mpz_t n;
         mpz_init(n);
-        for (i = 0; i <= MAX_RECEIVER; i++)
+        for (i = 0; i <= max_group_size; i++)
         {
             element_init_G2(hRec[i], pairing);
             mpz_set_ui(n, (unsigned int)i);
@@ -190,6 +190,18 @@ int encrypt_sgx_safe(BroadcastKey* bKey, Ciphertext *cipher,
     return 0;
 }
 
+int add_user_sgx_safe(Ciphertext *cipher, MasterSecretKey msk, char* id)
+{
+    element_t hash;
+    element_init_Zr(hash, pairing);
+    element_from_hash(hash, id, strlen(id));
+
+    element_add(hash, hash, msk.gamma);
+    element_pow_zn(cipher->c2, cipher->c2, hash);
+
+    element_clear(hash);
+    return 0;
+}
 
 int decrypt_sgx_safe(BroadcastKey* bKey, Ciphertext cipher,
     ShortPublicKey pubKey, MasterSecretKey msk,
@@ -376,7 +388,7 @@ int decrypt_user_no_optimizations(BroadcastKey* bKey, Ciphertext cipher, PublicK
         if (idNum == 1)
         {
             /*dealing with only 1 receiver*/
-            element_set(htemp1, key.h[MAX_RECEIVER+1]);
+            element_set(htemp1, key.h[idNum+1]);
         }
         else
         {
@@ -528,63 +540,53 @@ int decrypt_user(BroadcastKey* bKey, Ciphertext cipher, PublicKey key, UserPriva
                 element_from_hash(hid[i], decryptUsrSet[i], strlen(decryptUsrSet[i]));
         }
 
-        // I think the bellow if can be removed
-        /*calculation*/
-        if (idCount == 1)
+        element_set(polyA[0], hid[0]);
+        element_set1(polyA[1]);
+        for (i = 1; i < idCount - 1; i++)
         {
-            /*dealing with only 1 receiver*/
-            element_set(htemp1, key.h[MAX_RECEIVER+1]);
-        }
-        else
-        {
-            element_set(polyA[0], hid[0]);
-            element_set1(polyA[1]);
-            for (i = 1; i < idCount - 1; i++)
+            /*i-th polynomial*/
+            /*polyA * (r + H(ID))*/
+            element_set1(polyA[i+1]);
+            for (j = i; j >= 1; j--)
             {
-                /*i-th polynomial*/
-                /*polyA * (r + H(ID))*/
-                element_set1(polyA[i+1]);
-                for (j = i; j >= 1; j--)
-                {
-                    element_mul(polyB[j], polyA[j], hid[i]);
-                    element_add(polyA[j], polyA[j-1], polyB[j]);
-                }
-                element_mul(polyA[0], polyA[0], hid[i]);
+                element_mul(polyB[j], polyA[j], hid[i]);
+                element_add(polyA[j], polyA[j-1], polyB[j]);
             }
-            element_set1(htemp1);
+            element_mul(polyA[0], polyA[0], hid[i]);
+        }
+        element_set1(htemp1);
 
-            // multithreading
+        // multithreading
+        {
+            int idNum = idCount - 2;
+            int exp_per_partition = (idNum / THREADS_COUNT) + 1;
+
+            pthread_t tid[THREADS_COUNT];
+            for(int thread_idx = 0; thread_idx < THREADS_COUNT; thread_idx++)
             {
-                int idNum = idCount - 2;
-                int exp_per_partition = (idNum / THREADS_COUNT) + 1;
-
-                pthread_t tid[THREADS_COUNT];
-                for(int thread_idx = 0; thread_idx < THREADS_COUNT; thread_idx++)
+                // compute the partition of exponentiations
+                struct exp_part_struct* args = malloc (sizeof (struct exp_part_struct));
+                args->key = key;
+                args->polyA = polyA;
+                args->start = thread_idx * exp_per_partition;
+                args->end = args->start + exp_per_partition - 1;
+                if (args->end > idNum)
                 {
-                    // compute the partition of exponentiations
-                    struct exp_part_struct* args = malloc (sizeof (struct exp_part_struct));
-                    args->key = key;
-                    args->polyA = polyA;
-                    args->start = thread_idx * exp_per_partition;
-                    args->end = args->start + exp_per_partition - 1;
-                    if (args->end > idNum)
-                    {
-                        args->end = idNum;
-                    }
-
-                    pthread_create(&tid[thread_idx], NULL, decrypt_exponentiate_by_partition, (void *)args);
+                    args->end = idNum;
                 }
 
-                element_t result;
-                element_init_G1(result, pairing);
-                element_set1(result);
-                // wait that threads are complete
-                for(int thread_idx = 0; thread_idx < THREADS_COUNT; thread_idx++)
-                {
-                    void* partition_result;
-                    pthread_join(tid[thread_idx], &partition_result);
-                    element_mul(htemp1, htemp1, *(element_t*)partition_result);
-                }
+                pthread_create(&tid[thread_idx], NULL, decrypt_exponentiate_by_partition, (void *)args);
+            }
+
+            element_t result;
+            element_init_G1(result, pairing);
+            element_set1(result);
+            // wait that threads are complete
+            for(int thread_idx = 0; thread_idx < THREADS_COUNT; thread_idx++)
+            {
+                void* partition_result;
+                pthread_join(tid[thread_idx], &partition_result);
+                element_mul(htemp1, htemp1, *(element_t*)partition_result);
             }
         }
         /*
