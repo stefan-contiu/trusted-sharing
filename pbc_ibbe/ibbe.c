@@ -10,6 +10,7 @@
 
 #include "ibbe.h"
 #include <openssl/sha.h>
+#include <openssl/evp.h>
 #include <pthread.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -67,6 +68,7 @@ int setup_sgx_safe(PublicKey *puk, ShortPublicKey *spuk, MasterSecretKey *msk, i
         mpz_clear(n);
 
         puk->h = hRec;
+        puk->h_size = max_group_size + 2;
         element_init_G1(puk->w, pairing);
         element_init_GT(puk->v, pairing);
         element_set(puk->w, w);
@@ -90,7 +92,7 @@ int setup_sgx_safe(PublicKey *puk, ShortPublicKey *spuk, MasterSecretKey *msk, i
         element_set(spuk->v, puk->v);
         element_set(spuk->h, puk->h[0]);
         int hlen = element_length_in_bytes(puk->h[0]);
-        printf("Pub key element size (bytes): %d\n", hlen);
+        //printf("Pub key element size (bytes): %d\n", hlen);
     }
 
     // clean-up
@@ -170,7 +172,7 @@ int encrypt_sgx_safe(BroadcastKey* bKey, Ciphertext *cipher,
 
         // serialize to bytes and do a SHA
         int generated_key_length = element_length_in_bytes(key_element);
-        unsigned char* key_element_bytes = malloc(generated_key_length);
+        unsigned char* key_element_bytes = (unsigned char*) malloc(generated_key_length);
         element_to_bytes(key_element_bytes, key_element);
         SHA256(key_element_bytes, generated_key_length, *bKey);
         free(key_element_bytes);
@@ -245,7 +247,7 @@ int decrypt_sgx_safe(BroadcastKey* bKey, Ciphertext cipher,
 
         // serialize to bytes and do a SHA
         int generated_key_length = element_length_in_bytes(e_1);
-        unsigned char* key_element_bytes = malloc(generated_key_length);
+        unsigned char* key_element_bytes = (unsigned char*) malloc(generated_key_length);
         element_to_bytes(key_element_bytes, e_1);
         SHA256(key_element_bytes, generated_key_length, *bKey);
         free(key_element_bytes);
@@ -323,7 +325,7 @@ int decrypt_with_key_sgx_safe(BroadcastKey* bKey, Ciphertext cipher,
 
         // serialize to bytes and do a SHA
         int generated_key_length = element_length_in_bytes(e_1);
-        unsigned char* key_element_bytes = malloc(generated_key_length);
+        unsigned char* key_element_bytes = (unsigned char*) malloc(generated_key_length);
         element_to_bytes(key_element_bytes, e_1);
         SHA256(key_element_bytes, generated_key_length, *bKey);
         free(key_element_bytes);
@@ -435,7 +437,7 @@ int decrypt_user_no_optimizations(BroadcastKey* bKey, Ciphertext cipher, PublicK
 
     // serialize to bytes and do a SHA
     int generated_key_length = element_length_in_bytes(temp1);
-    unsigned char* key_element_bytes = malloc(generated_key_length);
+    unsigned char* key_element_bytes = (unsigned char*) malloc(generated_key_length);
     element_to_bytes(key_element_bytes, temp1);
     SHA256(key_element_bytes, generated_key_length, *bKey);
     free(key_element_bytes);
@@ -565,7 +567,7 @@ int decrypt_user(BroadcastKey* bKey, Ciphertext cipher, PublicKey key, UserPriva
             for(int thread_idx = 0; thread_idx < THREADS_COUNT; thread_idx++)
             {
                 // compute the partition of exponentiations
-                struct exp_part_struct* args = malloc (sizeof (struct exp_part_struct));
+                struct exp_part_struct* args = (struct exp_part_struct*) malloc (sizeof (struct exp_part_struct));
                 args->key = key;
                 args->polyA = polyA;
                 args->start = thread_idx * exp_per_partition;
@@ -611,7 +613,7 @@ int decrypt_user(BroadcastKey* bKey, Ciphertext cipher, PublicKey key, UserPriva
 
     // serialize to bytes and do a SHA
     int generated_key_length = element_length_in_bytes(temp1);
-    unsigned char* key_element_bytes = malloc(generated_key_length);
+    unsigned char* key_element_bytes = (unsigned char*) malloc(generated_key_length);
     element_to_bytes(key_element_bytes, temp1);
     SHA256(key_element_bytes, generated_key_length, *bKey);
     free(key_element_bytes);
@@ -624,4 +626,250 @@ int decrypt_user(BroadcastKey* bKey, Ciphertext cipher, PublicKey key, UserPriva
     element_clear(ztemp);
 
     return 0;
+}
+
+void serialize_public_key(PublicKey pk, unsigned char* s, int* s_count)
+{
+    printf("START SERIALIZING INSIDE ....\n");
+    s = (unsigned char*) malloc(PAIRING_ELEMENT_SIZE * (2 + pk.h_size));
+    int offset = 0;
+
+    // save w
+    unsigned char* w_bytes = (unsigned char*) malloc(PAIRING_ELEMENT_SIZE);
+    element_to_bytes(w_bytes, pk.w);
+    memcpy(s, w_bytes, PAIRING_ELEMENT_SIZE);
+    offset += PAIRING_ELEMENT_SIZE;
+    free(w_bytes);
+
+    // save v
+    unsigned char* v_bytes = (unsigned char*) malloc(PAIRING_ELEMENT_SIZE);
+    element_to_bytes(v_bytes, pk.v);
+    memcpy(s + offset, v_bytes, PAIRING_ELEMENT_SIZE);
+    offset += PAIRING_ELEMENT_SIZE;
+    free(v_bytes);
+
+    // save h
+    for(int i = 0; i < pk.h_size - 1; i++)
+    {
+        unsigned char* h_bytes = (unsigned char*) malloc(PAIRING_ELEMENT_SIZE);
+        element_to_bytes(w_bytes, pk.h[i]);
+        memcpy(s + offset, w_bytes, PAIRING_ELEMENT_SIZE);
+        offset += PAIRING_ELEMENT_SIZE;
+        free(h_bytes);
+    }
+
+    *s_count = offset;
+    printf("PK SER SIZE : %d\n", *s_count);
+}
+
+void serialize_short_public_key(ShortPublicKey spk, unsigned char* s, int* s_count)
+{
+    s = (unsigned char*) malloc(3 * PAIRING_ELEMENT_SIZE);
+    int offset = 0;
+
+    // save w
+    unsigned char* w_bytes = (unsigned char*) malloc(PAIRING_ELEMENT_SIZE);
+    element_to_bytes(w_bytes, spk.w);
+    memcpy(s, w_bytes, PAIRING_ELEMENT_SIZE);
+    offset += PAIRING_ELEMENT_SIZE;
+    free(w_bytes);
+
+    // save v
+    unsigned char* v_bytes = (unsigned char*) malloc(PAIRING_ELEMENT_SIZE);
+    element_to_bytes(v_bytes, spk.v);
+    memcpy(s + offset, v_bytes, PAIRING_ELEMENT_SIZE);
+    offset += PAIRING_ELEMENT_SIZE;
+    free(v_bytes);
+
+    // save h
+    unsigned char* h_bytes = (unsigned char*) malloc(PAIRING_ELEMENT_SIZE);
+    element_to_bytes(h_bytes, spk.v);
+    memcpy(s + offset, h_bytes, PAIRING_ELEMENT_SIZE);
+    offset += PAIRING_ELEMENT_SIZE;
+    free(h_bytes);
+
+    *s_count = offset;
+}
+
+void serialize_master_secret_key(MasterSecretKey msk, unsigned char* s, int* s_count)
+{
+    s = (unsigned char*) malloc(PAIRING_ELEMENT_SIZE + ZN_ELEMENT_SIZE);
+    int offset = 0;
+
+    // save g
+    unsigned char* g_bytes = (unsigned char*) malloc(PAIRING_ELEMENT_SIZE);
+    element_to_bytes(g_bytes, msk.g);
+    memcpy(s, g_bytes, PAIRING_ELEMENT_SIZE);
+    offset += PAIRING_ELEMENT_SIZE;
+    free(g_bytes);
+
+    // save gamma
+    unsigned char* gamma_bytes = (unsigned char*) malloc(ZN_ELEMENT_SIZE);
+    element_to_bytes(gamma_bytes, msk.gamma);
+    memcpy(s + offset, gamma_bytes, ZN_ELEMENT_SIZE);
+    offset += ZN_ELEMENT_SIZE;
+    free(gamma_bytes);
+
+    *s_count = offset;
+}
+
+void serialize_cipher(Ciphertext c, unsigned char* s, int* s_count)
+{
+    printf("C1 : %d \n", element_length_in_bytes(c.c1));
+    printf("C2 : %d \n", element_length_in_bytes(c.c2));
+    printf("CH : %d \n", element_length_in_bytes(c.h_pow_product_gamma_hash));
+    //s = (unsigned char*) malloc(64);
+}
+
+void deserialize_public_key(unsigned char s[], PublicKey* pk)
+{
+
+}
+
+void deserialize_short_public_key(unsigned char s[], ShortPublicKey* spk)
+{
+
+}
+
+void deserialize_master_secret_key(unsigned char s[], MasterSecretKey* msk)
+{
+
+}
+
+void deserialize_cipher(unsigned char s[], Ciphertext* c)
+{
+
+}
+
+unsigned char* gen_random_bytestream(int n)
+{
+    unsigned char* stream = (unsigned char*) malloc(n + 1);
+    size_t i;
+    for (i = 0; i < n; i++)
+    {
+        stream[i] = (unsigned char) (rand() % 255 + 1);
+    }
+    stream[n] = 0;
+    return stream;
+}
+
+/*
+int create_group(
+    GroupKeyEncryptedByPartitionKey** gpKeys, Ciphertext** gpCiphers,
+    ShortPublicKey pubKey, MasterSecretKeyCipher mskCipher,
+    char idSet[][MAX_STRING_LENGTH], int idCount, int partitionCount)
+{
+    // decrypt the master secret key (system) by the enclave key
+    MasterSecretKey msk;
+
+    //
+    create_group_sgx_safe(gpKeys, gpCiphers, pubKey, msk,
+        idSet, idCount, partitionCount);
+}
+*/
+
+int enclave_create_group(
+    GroupKeyEncryptedByPartitionKey gpKeys[], Ciphertext gpCiphers[],
+    ShortPublicKey pubKey, MasterSecretKey msk,
+    //char idSet[][MAX_STRING_LENGTH], int idCount, int usersPerPartition)
+    char **idSet, int idCount, int usersPerPartition)
+{
+    // generate a random group key
+    unsigned char* group_key = gen_random_bytestream(32);
+    //printf("RND GRP KEY : ");
+    //print_hex(group_key, 32);
+
+    // split idSet into partitions
+    for (int p = 0; p * usersPerPartition < idCount; p++)
+    {
+        int pStart = p * usersPerPartition;
+        int pEnd   = pStart + usersPerPartition;
+//        printf("Partition from %d to %d ... \n", pStart, pEnd - 1);
+        char idPartition[usersPerPartition][MAX_STRING_LENGTH];
+        //printf("ALLOCATED ... \n");
+
+        for (int i=pStart; i<pEnd; i++)
+        {
+            memcpy(idPartition[i - pStart], idSet[i], MAX_STRING_LENGTH);
+        }
+
+        // get a broadcast and ciphertext for the partition
+        BroadcastKey bKey;
+        Ciphertext bCipher;
+        //for(int i=0; i<usersPerPartition; i++)
+        //    printf("ENC : %s\n", idPartition[i]);//idPartition[i]);
+        encrypt_sgx_safe(&bKey, &bCipher, pubKey, msk, idPartition, usersPerPartition);
+
+        // encrypt the group key by the broadcast key
+        unsigned char* iv = gen_random_bytestream(16);
+//        print_hex(iv, 16);
+//        print_hex(bKey, 32);
+        unsigned char encryptedKey[48];
+        int len;
+        int ciphertext_len;
+        EVP_CIPHER_CTX *ctx;
+        ctx = EVP_CIPHER_CTX_new();
+        EVP_EncryptInit_ex(ctx,  EVP_aes_256_ctr(), NULL, bKey, iv);
+        EVP_EncryptUpdate(ctx, encryptedKey, &len, group_key, 32);
+        ciphertext_len = len;
+        EVP_EncryptFinal_ex(ctx, encryptedKey + len, &len);
+        ciphertext_len += len;
+        EVP_CIPHER_CTX_free(ctx);
+
+        // put the partition (encrytped key + iv) and ciphertext to return collections
+/*
+        printf("KEY : ");
+        print_hex(bKey, 32);
+
+        printf("PLN : ");
+        print_hex(group_key, 32);
+
+        printf("CIP : ");
+        print_hex(encryptedKey, 32);
+*/
+
+        //print_hex(encryptedKey, 32);
+
+
+
+        memcpy(gpKeys[p], encryptedKey, 32);
+        memcpy(gpKeys[p] + 32, iv, 16);
+        gpCiphers[p] = bCipher;
+    }
+
+    // clean-up if necessary
+}
+
+int user_decrypt_group_key(
+    GroupKey* gKey,
+    GroupKeyEncryptedByPartitionKey partEncKey, Ciphertext partCipher,
+    PublicKey key, UserPrivateKey ikey,
+    char* id, char idSet[][MAX_STRING_LENGTH], int idCount)
+{
+    // derive a broadcast key based on partition
+    BroadcastKey bKey;
+//    printf("Partition from %d to %d ... \n", 0, idCount - 1);
+
+    //for(int i=0; i<idCount; i++)
+    //    printf("%s\n", idSet[i]);
+    decrypt_user(&bKey, partCipher, key, ikey, id, idSet, idCount);
+//    printf("KEY : "); print_hex(bKey, 32);
+    // decrypt the encrypted group key by partition broadcast key
+    unsigned char iv[16];
+    memcpy(iv, partEncKey + 32, 16);
+//    print_hex(iv, 16);
+    unsigned char pKey[32];
+    memcpy(pKey, partEncKey, 32);
+    EVP_CIPHER_CTX *ctx;
+    int len;
+    int plaintext_len;
+    ctx = EVP_CIPHER_CTX_new();
+    EVP_DecryptInit_ex(ctx, EVP_aes_256_ctr(), NULL, bKey, iv);
+    EVP_DecryptUpdate(ctx, *gKey, &len, pKey, 32);
+    plaintext_len = len;
+    EVP_DecryptFinal_ex(ctx, (*gKey) + len, &len);
+    plaintext_len += len;
+    EVP_CIPHER_CTX_free(ctx);
+
+    // cleanup?
 }
