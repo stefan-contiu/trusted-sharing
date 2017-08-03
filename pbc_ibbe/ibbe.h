@@ -64,7 +64,12 @@ int encrypt_sgx_safe(BroadcastKey* bKey, Ciphertext *cipher,
 
 int add_user_sgx_safe(Ciphertext *cipher, MasterSecretKey msk, char* id);
 
-int rekey_user_sgx_safe(BroadcastKey* bKey, Ciphertext *cipher, ShortPublicKey spk, MasterSecretKey msk);
+int rekey_sgx_safe(BroadcastKey* bKey, Ciphertext *cipher, ShortPublicKey spk, MasterSecretKey msk);
+
+int remove_user_sgx_safe(
+    BroadcastKey* bKey, Ciphertext *cipher,
+    char* id,
+    ShortPublicKey spk, MasterSecretKey msk);
 
 int decrypt_sgx_safe(BroadcastKey* bKey, Ciphertext cipher,
     ShortPublicKey pubKey, MasterSecretKey msk,

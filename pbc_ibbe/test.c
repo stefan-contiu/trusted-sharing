@@ -254,7 +254,6 @@ void bvt_cpp(int argc, char** argv, int g_size, int p_size)
         decrypt_user_name,
         members,
         p_size);
-    return;
 
     // revoke a user from a middle partition
     sp_ibbe_remove_user(
@@ -263,9 +262,22 @@ void bvt_cpp(int argc, char** argv, int g_size, int p_size)
         gpKeys,
         gpCiphers,
         members,
-        decrypt_user_name,
+        "test253@mail.com",
         p_size
     );
+
+    // check that other users are fine
+    std::string u2 = "test11@mail.com";
+    UserPrivateKey u2key;
+    extract_sgx_safe(msk, u2key, (char*)u2.c_str());
+    GroupKey u2gk;
+    sp_ibbe_user_decrypt(&u2gk, gpKeys, gpCiphers, pubKey, u2key, u2, members, p_size);
+
+    std::string u3 = "test813@mail.com";
+    UserPrivateKey u3key;
+    extract_sgx_safe(msk, u3key, (char*)u3.c_str());
+    GroupKey u3gk;
+    sp_ibbe_user_decrypt(&u3gk, gpKeys, gpCiphers, pubKey, u3key, u3, members, p_size);
 }
 
 

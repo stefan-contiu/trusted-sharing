@@ -221,7 +221,7 @@ int add_user_sgx_safe(Ciphertext *cipher, MasterSecretKey msk, char* id)
 }
 
 // should have a corresponding theorem in the paper
-int rekey_user_sgx_safe(BroadcastKey* bKey, Ciphertext *cipher, ShortPublicKey spk, MasterSecretKey msk)
+int rekey_sgx_safe(BroadcastKey* bKey, Ciphertext *cipher, ShortPublicKey spk, MasterSecretKey msk)
 {
     // generate a new k
     element_t k;
@@ -235,6 +235,55 @@ int rekey_user_sgx_safe(BroadcastKey* bKey, Ciphertext *cipher, ShortPublicKey s
         // c1
         element_pow_zn(cipher->c1, spk.w, k);
         element_invert(cipher->c1, cipher->c1);
+
+        // c2
+        element_pow_zn(cipher->c2, cipher->h_pow_product_gamma_hash, k);
+    }
+
+    // compute new boradcast key K
+    {
+        element_t key_element;
+        element_init_GT(key_element, pairing);
+        element_pow_zn(key_element, spk.v, k);
+
+        // serialize to bytes and do a SHA
+        int generated_key_length = element_length_in_bytes(key_element);
+        unsigned char* key_element_bytes = (unsigned char*) malloc(generated_key_length);
+        element_to_bytes(key_element_bytes, key_element);
+        SHA256(key_element_bytes, generated_key_length, *bKey);
+        free(key_element_bytes);
+    }
+
+    element_clear(k);
+    return 0;
+}
+
+// theorem, see the blue paper for it
+int remove_user_sgx_safe(
+    BroadcastKey* bKey, Ciphertext *cipher,
+    char* id,
+    ShortPublicKey spk, MasterSecretKey msk)
+{
+    // generate a new k
+    element_t k;
+    {
+        element_init_Zr(k, pairing);
+        element_random(k);
+    }
+
+    // compute new Ciphertext elements
+    {
+        // c1
+        element_pow_zn(cipher->c1, spk.w, k);
+        element_invert(cipher->c1, cipher->c1);
+
+        //  h_pow_product_gamma_hash ^ 1/(gamma + hash)
+        element_t hash;
+        element_init_Zr(hash, pairing);
+        element_from_hash(hash, id, strlen(id));
+        element_add(hash, hash, msk.gamma);
+        element_invert(hash, hash);
+        element_pow_zn(cipher->h_pow_product_gamma_hash, cipher->h_pow_product_gamma_hash, hash);
 
         // c2
         element_pow_zn(cipher->c2, cipher->h_pow_product_gamma_hash, k);
