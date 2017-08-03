@@ -1,8 +1,8 @@
 #include "ibbe.h"
-//#include "spibbe.h"
+#include "spibbe.h"
 #include <stdio.h>
 #include <time.h>
-
+#include <string>
 
 void print_key(unsigned char *h)
 {
@@ -71,6 +71,7 @@ int bvt_ibbe(int argc, char** argv)
     }
 }
 
+/*
 int bvt_spibbe(int argc, char** argv, int group_size, int partition_max_size)
 {
     char **S;
@@ -155,6 +156,7 @@ int bvt_spibbe(int argc, char** argv, int group_size, int partition_max_size)
 
     return 0;
 }
+*/
 
 void bvt_serialization(int argc, char** argv)
 {
@@ -189,6 +191,7 @@ void bvt_serialization(int argc, char** argv)
     serialize_master_secret_key(prvkey, s_msk, &msk_size);
 }
 
+/*
 int complete_spibbe(int argc, char** argv)
 {
     int g_size[8] = {500, 1000, 5000, 10000, 50000, 100000, 500000, 1000000};
@@ -205,15 +208,64 @@ int complete_spibbe(int argc, char** argv)
             bvt_spibbe(argc, argv, g_size[g], p_size[p]);
     }
 }
+*/
 
-void simple_bvt(int argc, char** argv)
+void bvt_cpp(int argc, char** argv, int g_size, int p_size)
 {
-    for(int i=100; i<10000; i+= 100)
-    {
-        //printf("-----------------%d\n", i);
-        bvt_spibbe(argc, argv, i, i);
-    }
+    // system set-up
+    PublicKey pubKey;
+    MasterSecretKey msk;
+    ShortPublicKey shortPubKey;
+    setup_sgx_safe(&pubKey, &shortPubKey, &msk,
+        p_size, argc, argv);
 
+    // mock a list of members
+    std::vector<std::string> members;
+    for (int i = 0; i < g_size; i++)
+    {
+        char* ss = (char*) malloc(MAX_STRING_LENGTH);
+        sprintf(ss, "test%d@mail.com", i);
+        std::string s(ss);
+        members.push_back(s);
+    }
+    printf("Members generated : %d\n", members.size());
+
+    // create group
+    std::vector<EncryptedGroupKey> gpKeys;
+    std::vector<Ciphertext> gpCiphers;
+    sp_ibbe_create_group(
+        gpKeys, gpCiphers,
+        shortPubKey, msk,
+        members,
+        p_size);
+
+    // extract a key and validate group
+    std::string decrypt_user_name = "test930@mail.com";
+    UserPrivateKey usr13PriKey;
+    extract_sgx_safe(msk, usr13PriKey, (char*) decrypt_user_name.c_str());
+
+    GroupKey groupKey;
+    sp_ibbe_user_decrypt(
+        &groupKey,
+        gpKeys,
+        gpCiphers,
+        pubKey,
+        usr13PriKey,
+        decrypt_user_name,
+        members,
+        p_size);
+    return;
+
+    // revoke a user from a middle partition
+    sp_ibbe_remove_user(
+        shortPubKey,
+        msk,
+        gpKeys,
+        gpCiphers,
+        members,
+        decrypt_user_name,
+        p_size
+    );
 }
 
 
@@ -225,6 +277,8 @@ int main(int argc, char** argv)
 
     //complete_spibbe(argc, argv);
 
-    simple_bvt(argc, argv);
+    //simple_bvt(argc, argv);
+
+    bvt_cpp(argc, argv, 980, 100);
     return 0;
 }

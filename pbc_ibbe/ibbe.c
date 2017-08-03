@@ -9,6 +9,7 @@
  */
 
 #include "ibbe.h"
+#include "pbc_test.h"
 #include <openssl/sha.h>
 #include <openssl/evp.h>
 #include <pthread.h>
@@ -125,13 +126,14 @@ int encrypt_sgx_safe(BroadcastKey* bKey, Ciphertext *cipher,
     ShortPublicKey pubKey, MasterSecretKey msk, char idSet[][MAX_STRING_LENGTH], int idCount)
 {
     element_t k;
-    element_t c1, c2;
+    element_t c1, c2, c3;
     element_t product;
     element_t hash;
 
     element_init_Zr(k, pairing);
     element_init_G1(c1, pairing);
     element_init_G2(c2, pairing);
+    element_init_G2(c3, pairing);
     element_random(k);
 
     // compute C1
@@ -141,7 +143,7 @@ int encrypt_sgx_safe(BroadcastKey* bKey, Ciphertext *cipher,
         //element_printf("C1 : %B\n", c1);
     }
 
-    // compute C2
+    // compute C2 and C3
     {
         element_init_Zr(product, pairing);
         element_set1(product);
@@ -156,12 +158,21 @@ int encrypt_sgx_safe(BroadcastKey* bKey, Ciphertext *cipher,
             element_mul(product, product, hash);
         }
 
+        // raise h at product
+        element_pow_zn(c3, pubKey.h, product);
+
+        // raise c3 at k
+        element_pow_zn(c2, c3, k);
+
+
+        /*
         // multiply whole product by k
         element_mul(product, product, k);
 
         // raise h to product
         element_pow_zn(c2, pubKey.h, product);
         //element_printf("C2 : %B\n", c2);
+        */
     }
 
     // compute BroadcastKey
@@ -180,8 +191,10 @@ int encrypt_sgx_safe(BroadcastKey* bKey, Ciphertext *cipher,
 
     element_init_G1(cipher->c1, pairing);
     element_init_G1(cipher->c2, pairing);
+    element_init_G1(cipher->h_pow_product_gamma_hash, pairing);
     element_set(cipher->c1, c1);
     element_set(cipher->c2, c2);
+    element_set(cipher->h_pow_product_gamma_hash, c3);
 
     element_clear(k);
     element_clear(c1);
@@ -192,6 +205,7 @@ int encrypt_sgx_safe(BroadcastKey* bKey, Ciphertext *cipher,
     return 0;
 }
 
+// should have a correponding theorem in the paper.
 int add_user_sgx_safe(Ciphertext *cipher, MasterSecretKey msk, char* id)
 {
     element_t hash;
@@ -200,8 +214,47 @@ int add_user_sgx_safe(Ciphertext *cipher, MasterSecretKey msk, char* id)
 
     element_add(hash, hash, msk.gamma);
     element_pow_zn(cipher->c2, cipher->c2, hash);
+    element_pow_zn(cipher->h_pow_product_gamma_hash, cipher->h_pow_product_gamma_hash, hash);
 
     element_clear(hash);
+    return 0;
+}
+
+// should have a corresponding theorem in the paper
+int rekey_user_sgx_safe(BroadcastKey* bKey, Ciphertext *cipher, ShortPublicKey spk, MasterSecretKey msk)
+{
+    // generate a new k
+    element_t k;
+    {
+        element_init_Zr(k, pairing);
+        element_random(k);
+    }
+
+    // compute new Ciphertext elements
+    {
+        // c1
+        element_pow_zn(cipher->c1, spk.w, k);
+        element_invert(cipher->c1, cipher->c1);
+
+        // c2
+        element_pow_zn(cipher->c2, cipher->h_pow_product_gamma_hash, k);
+    }
+
+    // compute new boradcast key K
+    {
+        element_t key_element;
+        element_init_GT(key_element, pairing);
+        element_pow_zn(key_element, spk.v, k);
+
+        // serialize to bytes and do a SHA
+        int generated_key_length = element_length_in_bytes(key_element);
+        unsigned char* key_element_bytes = (unsigned char*) malloc(generated_key_length);
+        element_to_bytes(key_element_bytes, key_element);
+        SHA256(key_element_bytes, generated_key_length, *bKey);
+        free(key_element_bytes);
+    }
+
+    element_clear(k);
     return 0;
 }
 
@@ -497,7 +550,7 @@ void *decrypt_exponentiate_by_partition(void *pargs)
     return (void*) ptemp;
 }
 
-int decrypt_user(BroadcastKey* bKey, Ciphertext cipher, PublicKey key, UserPrivateKey ikey, char* id, char idSet[][MAX_STRING_LENGTH], int idCount)
+int decrypt_user(BroadcastKey* bKey, Ciphertext cipher, PublicKey key, UserPrivateKey ikey, const char* id, char idSet[][MAX_STRING_LENGTH], int idCount)
 {
     int i, j;
     int mark = 1;

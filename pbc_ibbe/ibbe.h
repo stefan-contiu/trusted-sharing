@@ -3,14 +3,13 @@
 #define IBBE_H
 
 #include "pbc.h"
-#include "pbc_test.h"
 #include <stdio.h>
 #include <time.h>
 #include <string.h>
 
-#if defined (__cplusplus)
-extern "C" {
-#endif
+//#if defined (__cplusplus)
+//extern "C" {
+//#endif
 
 // NOTE : if the curve changes, the size will change mostlikely
 #define PAIRING_ELEMENT_SIZE 128
@@ -48,6 +47,12 @@ typedef unsigned char GroupKey[32];
 
 typedef unsigned char GroupKeyEncryptedByPartitionKey[48]; // 32 for the key, 16 for IV
 
+typedef struct {
+    unsigned char encryptedKey[32];
+    unsigned char iv[16];
+} EncryptedGroupKey;
+
+
 /* SGX SAFE METHODS - FOR ADMIN USE */
 int setup_sgx_safe(PublicKey *puk, ShortPublicKey *spuk, MasterSecretKey *prk,
     int max_group_size, int argc, char** argv);
@@ -58,6 +63,8 @@ int encrypt_sgx_safe(BroadcastKey* bKey, Ciphertext *cipher,
     ShortPublicKey pubKey, MasterSecretKey msk, char idSet[][MAX_STRING_LENGTH], int idCount);
 
 int add_user_sgx_safe(Ciphertext *cipher, MasterSecretKey msk, char* id);
+
+int rekey_user_sgx_safe(BroadcastKey* bKey, Ciphertext *cipher, ShortPublicKey spk, MasterSecretKey msk);
 
 int decrypt_sgx_safe(BroadcastKey* bKey, Ciphertext cipher,
     ShortPublicKey pubKey, MasterSecretKey msk,
@@ -70,7 +77,7 @@ int decrypt_with_key_sgx_safe(BroadcastKey* bKey, Ciphertext cipher,
 /* NON-SGX METHODS - FOR USER USE */
 int decrypt_user(BroadcastKey* bKey,
     Ciphertext cipher, PublicKey key, UserPrivateKey ikey,
-    char* id, char idSet[][MAX_STRING_LENGTH], int idCount);
+    const char* id, char idSet[][MAX_STRING_LENGTH], int idCount);
 
 int decrypt_user_no_optimizations(BroadcastKey* bKey,
     Ciphertext cipher, PublicKey key, UserPrivateKey ikey,
@@ -98,6 +105,7 @@ void deserialize_cipher(unsigned char s[], Ciphertext* c);
 
 
 /* SP-IBBE operations */
+/*
 int enclave_create_group(
     GroupKeyEncryptedByPartitionKey gpKeys[], Ciphertext gpCiphers[],
     ShortPublicKey pubKey, MasterSecretKey msk,
@@ -110,19 +118,19 @@ int user_decrypt_group_key(
     char* id, char idSet[][MAX_STRING_LENGTH], int idCount);
 
 int enclave_add_user_to_group(
-    Ciphertext* partCipher,
+    Ciphertext partCipher[],
     char* id, char** idSet, int* idCount, int* partitionCount
 );
 
 int enclave_remove_user_from_group(
 
 );
+*/
+unsigned char* gen_random_bytestream(int n);
 
 
-
-
-#if defined (__cplusplus)
-}
-#endif
+//#if defined (__cplusplus)
+//}
+//#endif
 
 #endif
