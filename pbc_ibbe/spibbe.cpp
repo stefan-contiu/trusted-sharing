@@ -1,11 +1,7 @@
 /*
- *  TODO : The random and encryption methods need to by replaced with the
- *          SGX correspondents !!!
- *  TODO : define partition and user lookup methods
- *  TODO : modify add operation to consider lookup in partition
- *  TODO : refactor encryption methods into same calls
- *  TODO : protect MSK by enclave private key
- *  TODO : group signature scheme for the enclaves
+ *  TODO : The random and AES methods need to be replaced with the SGX ones.
+ *  TODO : protect MSK by enclave private key.
+ *  TODO : group signature scheme for the enclaves.
  */
 
 #include "ibbe.h"
@@ -28,7 +24,6 @@ void sgx_random(int n, unsigned char b[])
         b[i] = (unsigned char) (rand() % 255 + 1);
     }
 }
-
 
 int get_partitions_count(std::vector<std::string>& members, int usersPerPartition)
 {
@@ -88,6 +83,25 @@ void sgx_aes_encrypt(
     EVP_CIPHER_CTX_free(ctx);
 }
 
+void sgx_aes_decrypt(
+    unsigned char* ciphertext,
+    int ciphertext_len,
+    unsigned char* key, unsigned char* iv,
+    unsigned char* plaintext)
+{
+    EVP_CIPHER_CTX *ctx;
+    int len;
+    int plaintext_len;
+    ctx = EVP_CIPHER_CTX_new();
+    EVP_DecryptInit_ex(ctx, EVP_aes_256_ctr(), NULL, key, iv);
+    EVP_DecryptUpdate(ctx, plaintext, &len, ciphertext, ciphertext_len);
+    plaintext_len = len;
+    EVP_DecryptFinal_ex(ctx, (plaintext) + len, &len);
+    plaintext_len += len;
+    EVP_CIPHER_CTX_free(ctx);
+}
+
+
 int sp_ibbe_create_group(
     std::vector<EncryptedGroupKey>& gpKeys,
     std::vector<Ciphertext>& gpCiphers,
@@ -98,8 +112,7 @@ int sp_ibbe_create_group(
 {
     // generate a random group key
     unsigned char* group_key = gen_random_bytestream(32);
-    printf("CERATE GROUP KEY : ");
-    print_hex(group_key, 32);
+    //printf("GKEY : "); print_hex(group_key, 32);
 
     // split idSet into partitions
     for (int p = 0; p * usersPerPartition < members.size(); p++)
@@ -111,7 +124,6 @@ int sp_ibbe_create_group(
             pEnd = members.size();
         }
 
-        printf("Partition from %d to %d ... \n", pStart, pEnd - 1);
         char idPartition[pEnd - pStart][MAX_STRING_LENGTH];
         for (int i=pStart; i<pEnd; i++)
         {
@@ -122,46 +134,17 @@ int sp_ibbe_create_group(
         BroadcastKey bKey;
         Ciphertext bCipher;
         encrypt_sgx_safe(&bKey, &bCipher, pubKey, msk, idPartition, pEnd - pStart);
-        printf("BKEY : "); print_hex(bKey, 32);
 
         // encrypt the group key by the broadcast key
         EncryptedGroupKey egk;
         sgx_random(16, egk.iv);
         sgx_aes_encrypt(group_key, 32, bKey, egk.iv, egk.encryptedKey);
 
-        //egk.iv = gen_random_bytestream(16);
-//      print_hex(iv, 16); print_hex(bKey, 32);
-        //unsigned char encryptedKey[32];
-        /*int len;
-        int ciphertext_len;
-        EVP_CIPHER_CTX *ctx;
-        ctx = EVP_CIPHER_CTX_new();
-        EVP_EncryptInit_ex(ctx, EVP_aes_256_ctr(), NULL, bKey, egk.iv);
-        EVP_EncryptUpdate(ctx, egk.encryptedKey, &len, group_key, 32);
-        ciphertext_len = len;
-        EVP_EncryptFinal_ex(ctx, egk.encryptedKey + len, &len);
-        ciphertext_len += len;
-        EVP_CIPHER_CTX_free(ctx);
-*/
-        // put the partition (encrytped key + iv) and ciphertext to return collections
-        /*
-        printf("KEY : ");
-        print_hex(bKey, 32);
-
-        printf("PLN : ");
-        print_hex(group_key, 32);
-
-        printf("CIP : ");
-        print_hex(egk.encryptedKey, 32);
-        */
         gpKeys.push_back(egk);
         gpCiphers.push_back(bCipher);
-
     }
-
-    // clean-up if necessary
-    printf("DONE CREATE GROUP\n");
 }
+
 
 int sp_ibbe_user_decrypt(
     GroupKey* gKey,
@@ -178,53 +161,78 @@ int sp_ibbe_user_decrypt(
     int idCount = usersPerPartition;
     if (userPartition == totalPartitions - 1)
     {
-        idCount = members.size() % usersPerPartition;
+        idCount = members.size() - (userPartition * usersPerPartition);
     }
-    //printf("idCount = %d\n", idCount);
 
     char idSet[idCount][MAX_STRING_LENGTH];
     for (int i=0; i<idCount; i++)
     {
         int member_index = i + (usersPerPartition * userPartition);
         memcpy(idSet[i], members[member_index].c_str(), MAX_STRING_LENGTH);
-    //    printf("%s\n", idSet[i]);
     }
 
     // derive a broadcast key based on partition
     BroadcastKey bKey;
     decrypt_user(&bKey, gpCiphers[userPartition], publicKey, userKey,
         user_id.c_str(), idSet, idCount);
-    printf("BKEY : "); print_hex(bKey, 32);
-
 
     // decrypt the encrypted group key by partition broadcast key
-    EVP_CIPHER_CTX *ctx;
-    int len;
-    int plaintext_len;
-    ctx = EVP_CIPHER_CTX_new();
-    EVP_DecryptInit_ex(ctx, EVP_aes_256_ctr(), NULL, bKey, gpKeys[userPartition].iv);
-    EVP_DecryptUpdate(ctx, *gKey, &len, gpKeys[userPartition].encryptedKey, 32);
-    plaintext_len = len;
-    EVP_DecryptFinal_ex(ctx, (*gKey) + len, &len);
-    plaintext_len += len;
-    EVP_CIPHER_CTX_free(ctx);
-    printf("USER DECRYTP KEY : "); print_hex(*gKey, 32);
+    sgx_aes_decrypt(gpKeys[userPartition].encryptedKey, 32, bKey,
+        gpKeys[userPartition].iv, *gKey);
 }
 
-/*
-int sp_ibbe_add_user(std::vector<std::string>& members)
+int sp_ibbe_add_user(
+    ShortPublicKey pubKey,
+    MasterSecretKey msk,
+    std::vector<EncryptedGroupKey>& gpKeys,
+    std::vector<Ciphertext>& gpCiphers,
+    std::vector<std::string>& members,
+    std::string user_id,
+    int usersPerPartition)
 {
     // should we add to the last partition or create a new one
     if (members.size() % usersPerPartition == 0)
     {
-        // create new partition, push to cloud
+        // get the group_key by decrypting by first partition
+        // TODO : O(m) decrypt should be a theorem
+        BroadcastKey bKey;
+        char firstPartition[usersPerPartition][MAX_STRING_LENGTH];
+        for (int i = 0; i < usersPerPartition; i++)
+        {
+            memcpy(firstPartition[i], members[i].c_str(), MAX_STRING_LENGTH);
+        }
+        decrypt_sgx_safe(&bKey, gpCiphers[0], pubKey, msk,
+            firstPartition, usersPerPartition);
+
+        // decrypt the group key
+        GroupKey group_key;
+        sgx_aes_decrypt(gpKeys[0].encryptedKey, 32, bKey,
+            gpKeys[0].iv, group_key);
+
+        // create new partition for a single user
+        BroadcastKey singleUserBKey;
+        Ciphertext bCipher;
+        char idSet[1][MAX_STRING_LENGTH];
+        memcpy(idSet[0], user_id.c_str(), MAX_STRING_LENGTH);
+        encrypt_sgx_safe(&singleUserBKey, &bCipher, pubKey, msk, idSet, 1);
+
+        // encrypt the group key by the new broadcast key
+        EncryptedGroupKey egk;
+        sgx_random(16, egk.iv);
+        sgx_aes_encrypt(group_key, 32, singleUserBKey, egk.iv, egk.encryptedKey);
+
+        gpKeys.push_back(egk);
+        gpCiphers.push_back(bCipher);
     }
     else
     {
-
+        // add to existing last partition
+        int p = get_partitions_count(members, usersPerPartition);
+        add_user_sgx_safe(&(gpCiphers[p - 1]), msk, (char*) user_id.c_str());
     }
+    members.push_back(user_id);
 }
-*/
+
 
 int sp_ibbe_remove_user(
     ShortPublicKey pubKey,
@@ -284,10 +292,16 @@ int sp_ibbe_remove_user(
         sgx_random(16, gpKeys[totalPartitions - 1].iv);
         sgx_aes_encrypt(group_key, 32, last_partition_key,
             gpKeys[totalPartitions - 1].iv, gpKeys[totalPartitions - 1].encryptedKey);
-
     }
 
     // change the members list
     members[get_user_index(members, user_id)] = last_user;
     members.pop_back();
+
+    // check if we need to get rid of last partition
+    if (members.size() % usersPerPartition == 0)
+    {
+        gpKeys.pop_back();
+        gpCiphers.pop_back();
+    }
 }

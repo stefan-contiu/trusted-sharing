@@ -93,7 +93,6 @@ int setup_sgx_safe(PublicKey *puk, ShortPublicKey *spuk, MasterSecretKey *msk, i
         element_set(spuk->v, puk->v);
         element_set(spuk->h, puk->h[0]);
         int hlen = element_length_in_bytes(puk->h[0]);
-        //printf("Pub key element size (bytes): %d\n", hlen);
     }
 
     // clean-up
@@ -163,17 +162,7 @@ int encrypt_sgx_safe(BroadcastKey* bKey, Ciphertext *cipher,
 
         // raise c3 at k
         element_pow_zn(c2, c3, k);
-
-
-        /*
-        // multiply whole product by k
-        element_mul(product, product, k);
-
-        // raise h to product
-        element_pow_zn(c2, pubKey.h, product);
-        //element_printf("C2 : %B\n", c2);
-        */
-    }
+   }
 
     // compute BroadcastKey
     {
@@ -471,13 +460,13 @@ int decrypt_user_no_optimizations(BroadcastKey* bKey, Ciphertext cipher, PublicK
 
     element_t *hid;
     {
-        /* polynominal multiplication */
-        /***************************************/
+        // polynominal multiplication 
         element_t *polyA, *polyB;
         polyA = (element_t*)malloc(sizeof(element_t) * idNum);
         polyB = (element_t*)malloc(sizeof(element_t) * idNum);
         hid = (element_t*)malloc(sizeof(element_t) * idNum-1);
-        /*initialization*/
+        
+        // initialization
         for (i = 0; i < idNum; i++)
         {
             element_init_Zr(polyA[i], pairing);
@@ -488,14 +477,16 @@ int decrypt_user_no_optimizations(BroadcastKey* bKey, Ciphertext cipher, PublicK
             if (i < idNum - 1)
                 element_from_hash(hid[i], decryptUsrSet[i], strlen(decryptUsrSet[i]));
         }
-        /*calculation*/
+        
+        // computations
         if (idNum == 1)
         {
-            /*dealing with only 1 receiver*/
-            element_set(htemp1, key.h[idNum+1]);
+            // to decrypt for a single user, just compute e(user_key, c2)
+            element_pairing(temp1, ikey, cipher.c2);
         }
         else
         {
+            // multiple users, should probably be explained in a theroem in the anex
             element_set(polyA[0], hid[0]);
             element_set1(polyA[1]);
             for (i = 1; i < idNum - 1; i++)
@@ -521,21 +512,21 @@ int decrypt_user_no_optimizations(BroadcastKey* bKey, Ciphertext cipher, PublicK
         free(polyA);
         free(polyB);
         */
+
+        element_pairing(temp1, cipher.c1, htemp1);
+        element_pairing(temp2, ikey, cipher.c2);
+        element_mul(temp1, temp1, temp2);
+
+        element_set1(ztemp);
+        for (i = 0; i < idNum - 1; i++)
+        {
+            element_mul(ztemp, ztemp, hid[i]);
+        }
+        element_invert(ztemp, ztemp);
+
+        /* K */
+        element_pow_zn(temp1, temp1, ztemp);
     }
-
-    element_pairing(temp1, cipher.c1, htemp1);
-    element_pairing(temp2, ikey, cipher.c2);
-    element_mul(temp1, temp1, temp2);
-
-    element_set1(ztemp);
-    for (i = 0; i < idNum - 1; i++)
-    {
-        element_mul(ztemp, ztemp, hid[i]);
-    }
-    element_invert(ztemp, ztemp);
-
-    /* K */
-    element_pow_zn(temp1, temp1, ztemp);
 
     // serialize to bytes and do a SHA
     int generated_key_length = element_length_in_bytes(temp1);
@@ -601,6 +592,9 @@ void *decrypt_exponentiate_by_partition(void *pargs)
 
 int decrypt_user(BroadcastKey* bKey, Ciphertext cipher, PublicKey key, UserPrivateKey ikey, const char* id, char idSet[][MAX_STRING_LENGTH], int idCount)
 {
+    if (idCount <= THREADS_COUNT)
+        return decrypt_user_no_optimizations(bKey, cipher, key, ikey, (char*)id, idSet, idCount);
+
     int i, j;
     int mark = 1;
     char **decryptUsrSet = (char**)malloc(sizeof(char*) * (idCount - 1));
@@ -853,125 +847,4 @@ unsigned char* gen_random_bytestream(int n)
     }
     stream[n] = 0;
     return stream;
-}
-
-/*
-int create_group(
-    GroupKeyEncryptedByPartitionKey** gpKeys, Ciphertext** gpCiphers,
-    ShortPublicKey pubKey, MasterSecretKeyCipher mskCipher,
-    char idSet[][MAX_STRING_LENGTH], int idCount, int partitionCount)
-{
-    // decrypt the master secret key (system) by the enclave key
-    MasterSecretKey msk;
-
-    //
-    create_group_sgx_safe(gpKeys, gpCiphers, pubKey, msk,
-        idSet, idCount, partitionCount);
-}
-*/
-
-int enclave_create_group(
-    GroupKeyEncryptedByPartitionKey gpKeys[], Ciphertext gpCiphers[],
-    ShortPublicKey pubKey, MasterSecretKey msk,
-    //char idSet[][MAX_STRING_LENGTH], int idCount, int usersPerPartition)
-    char **idSet, int idCount, int usersPerPartition)
-{
-    // generate a random group key
-    unsigned char* group_key = gen_random_bytestream(32);
-    //printf("RND GRP KEY : ");
-    //print_hex(group_key, 32);
-
-    // split idSet into partitions
-    for (int p = 0; p * usersPerPartition < idCount; p++)
-    {
-        int pStart = p * usersPerPartition;
-        int pEnd   = pStart + usersPerPartition;
-//        printf("Partition from %d to %d ... \n", pStart, pEnd - 1);
-        char idPartition[usersPerPartition][MAX_STRING_LENGTH];
-        //printf("ALLOCATED ... \n");
-
-        for (int i=pStart; i<pEnd; i++)
-        {
-            memcpy(idPartition[i - pStart], idSet[i], MAX_STRING_LENGTH);
-        }
-
-        // get a broadcast and ciphertext for the partition
-        BroadcastKey bKey;
-        Ciphertext bCipher;
-        //for(int i=0; i<usersPerPartition; i++)
-        //    printf("ENC : %s\n", idPartition[i]);//idPartition[i]);
-        encrypt_sgx_safe(&bKey, &bCipher, pubKey, msk, idPartition, usersPerPartition);
-
-        // encrypt the group key by the broadcast key
-        unsigned char* iv = gen_random_bytestream(16);
-//        print_hex(iv, 16);
-//        print_hex(bKey, 32);
-        unsigned char encryptedKey[48];
-        int len;
-        int ciphertext_len;
-        EVP_CIPHER_CTX *ctx;
-        ctx = EVP_CIPHER_CTX_new();
-        EVP_EncryptInit_ex(ctx,  EVP_aes_256_ctr(), NULL, bKey, iv);
-        EVP_EncryptUpdate(ctx, encryptedKey, &len, group_key, 32);
-        ciphertext_len = len;
-        EVP_EncryptFinal_ex(ctx, encryptedKey + len, &len);
-        ciphertext_len += len;
-        EVP_CIPHER_CTX_free(ctx);
-
-        // put the partition (encrytped key + iv) and ciphertext to return collections
-/*
-        printf("KEY : ");
-        print_hex(bKey, 32);
-
-        printf("PLN : ");
-        print_hex(group_key, 32);
-
-        printf("CIP : ");
-        print_hex(encryptedKey, 32);
-*/
-
-        //print_hex(encryptedKey, 32);
-
-
-
-        memcpy(gpKeys[p], encryptedKey, 32);
-        memcpy(gpKeys[p] + 32, iv, 16);
-        gpCiphers[p] = bCipher;
-    }
-
-    // clean-up if necessary
-}
-
-int user_decrypt_group_key(
-    GroupKey* gKey,
-    GroupKeyEncryptedByPartitionKey partEncKey, Ciphertext partCipher,
-    PublicKey key, UserPrivateKey ikey,
-    char* id, char idSet[][MAX_STRING_LENGTH], int idCount)
-{
-    // derive a broadcast key based on partition
-    BroadcastKey bKey;
-//    printf("Partition from %d to %d ... \n", 0, idCount - 1);
-
-    //for(int i=0; i<idCount; i++)
-    //    printf("%s\n", idSet[i]);
-    decrypt_user(&bKey, partCipher, key, ikey, id, idSet, idCount);
-//    printf("KEY : "); print_hex(bKey, 32);
-    // decrypt the encrypted group key by partition broadcast key
-    unsigned char iv[16];
-    memcpy(iv, partEncKey + 32, 16);
-//    print_hex(iv, 16);
-    unsigned char pKey[32];
-    memcpy(pKey, partEncKey, 32);
-    EVP_CIPHER_CTX *ctx;
-    int len;
-    int plaintext_len;
-    ctx = EVP_CIPHER_CTX_new();
-    EVP_DecryptInit_ex(ctx, EVP_aes_256_ctr(), NULL, bKey, iv);
-    EVP_DecryptUpdate(ctx, *gKey, &len, pKey, 32);
-    plaintext_len = len;
-    EVP_DecryptFinal_ex(ctx, (*gKey) + len, &len);
-    plaintext_len += len;
-    EVP_CIPHER_CTX_free(ctx);
-
-    // cleanup?
 }
