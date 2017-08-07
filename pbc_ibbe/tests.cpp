@@ -1,6 +1,7 @@
 #include "ibbe.h"
 #include "spibbe.h"
 #include "tests.h"
+#include "admin_api.h"
 #include <stdio.h>
 #include <time.h>
 #include <string>
@@ -44,7 +45,7 @@ void ftest_one_user(int argc, char** argv)
 
     // extract the key and validate group
     UserPrivateKey usrPriKey;
-    extract_sgx_safe(msk, usrPriKey, (char*) members[0].c_str());
+    extract_sgx_safe(shortPubKey, msk, usrPriKey, (char*) members[0].c_str());
 
     GroupKey groupKey;
     sp_ibbe_user_decrypt(
@@ -93,11 +94,11 @@ void ftest_create_group_decrypt_all(int argc, char** argv, int g_size, int p_siz
         p_size);
 
     std::string gk;
-    for(int i = 0; i < members.size(); i++)
+    for(uint i = 0; i < members.size(); i++)
     {
         // extract a key and validate group
         UserPrivateKey usrPriKey;
-        extract_sgx_safe(msk, usrPriKey, (char*) members[i].c_str());
+        extract_sgx_safe(shortPubKey, msk, usrPriKey, (char*) members[i].c_str());
 
         GroupKey groupKey;
         sp_ibbe_user_decrypt(
@@ -169,7 +170,7 @@ void ftest_add_users_decrypt_all(int argc, char** argv, int g_size, int p_size)
         {
             // extract a key and validate group
             UserPrivateKey usrPriKey;
-            extract_sgx_safe(msk, usrPriKey, (char*) members[j].c_str());
+            extract_sgx_safe(shortPubKey, msk, usrPriKey, (char*) members[j].c_str());
             GroupKey groupKey;
             sp_ibbe_user_decrypt(&groupKey,
                 gpKeys, gpCiphers,
@@ -234,7 +235,7 @@ void ftest_remove_decrypt_all(int argc, char** argv, int g_size, int p_size)
         for(int j = 0; j < members.size(); j++)
         {
             UserPrivateKey usrPriKey;
-            extract_sgx_safe(msk, usrPriKey, (char*) members[j].c_str());
+            extract_sgx_safe(shortPubKey, msk, usrPriKey, (char*) members[j].c_str());
             GroupKey groupKey;
             sp_ibbe_user_decrypt(&groupKey,
                 gpKeys, gpCiphers,
@@ -256,4 +257,17 @@ void ftest_remove_decrypt_all(int argc, char** argv, int g_size, int p_size)
             break;
     }
     printf ("\033[32;1m TEST PASSED \033[0m\n");
+}
+
+void admin_api(int g_size, int p_size)
+{
+    Configuration::UsersPerPartition = p_size;
+    AdminApi admin("master");
+    
+    std::vector<std::string> members;
+    generate_members(members, 0, g_size);
+    
+    admin.CreateGroup("friends", members);
+    //admin.AddUserToGroup("friends", "jim");
+    //admin.RemoveUserFromGroup("friends", "bob");
 }

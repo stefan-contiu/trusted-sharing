@@ -228,7 +228,7 @@ int sp_ibbe_add_user(
     {
         // add to existing last partition
         int p = get_partitions_count(members, usersPerPartition);
-        add_user_sgx_safe(&(gpCiphers[p - 1]), msk, (char*) user_id.c_str());
+        add_user_sgx_safe(pubKey, &(gpCiphers[p - 1]), msk, (char*) user_id.c_str());
     }
     members.push_back(user_id);
 }
@@ -280,7 +280,7 @@ int sp_ibbe_remove_user(
     if (userPartition < totalPartitions)
     {
         // include last member in user partition
-        add_user_sgx_safe(&(gpCiphers[userPartition]), msk, (char*)last_user.c_str());
+        add_user_sgx_safe(pubKey, &(gpCiphers[userPartition]), msk, (char*)last_user.c_str());
 
         // remove last member from last partition
         BroadcastKey last_partition_key;

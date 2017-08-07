@@ -7,9 +7,9 @@
 #include <time.h>
 #include <string.h>
 
-//#if defined (__cplusplus)
-//extern "C" {
-//#endif
+#if defined (__cplusplus)
+extern "C" {
+#endif
 
 // NOTE : if the curve changes, the size will change mostlikely
 #define PAIRING_ELEMENT_SIZE 128
@@ -22,10 +22,12 @@ typedef struct {
     element_t w, v;
     element_t *h;
     int h_size;
+    pairing_t pairing;
 } PublicKey;
 
 typedef struct {
     element_t w, v, h;
+    pairing_t pairing;
 } ShortPublicKey;
 
 typedef struct {
@@ -45,8 +47,6 @@ typedef unsigned char BroadcastKey[32];
 
 typedef unsigned char GroupKey[32];
 
-typedef unsigned char GroupKeyEncryptedByPartitionKey[48]; // 32 for the key, 16 for IV
-
 typedef struct {
     unsigned char encryptedKey[32];
     unsigned char iv[16];
@@ -57,12 +57,12 @@ typedef struct {
 int setup_sgx_safe(PublicKey *puk, ShortPublicKey *spuk, MasterSecretKey *prk,
     int max_group_size, int argc, char** argv);
 
-int extract_sgx_safe(MasterSecretKey key, UserPrivateKey idkey, char* id);
+int extract_sgx_safe(ShortPublicKey spk, MasterSecretKey key, UserPrivateKey idkey, char* id);
 
 int encrypt_sgx_safe(BroadcastKey* bKey, Ciphertext *cipher,
     ShortPublicKey pubKey, MasterSecretKey msk, char idSet[][MAX_STRING_LENGTH], int idCount);
 
-int add_user_sgx_safe(Ciphertext *cipher, MasterSecretKey msk, char* id);
+int add_user_sgx_safe(ShortPublicKey spk, Ciphertext *cipher, MasterSecretKey msk, char* id);
 
 int rekey_sgx_safe(BroadcastKey* bKey, Ciphertext *cipher, ShortPublicKey spk, MasterSecretKey msk);
 
@@ -95,47 +95,11 @@ static inline void print_hex(unsigned char *h, int l)
     printf("\n");
 }
 
-/* SERIALIZATION & DE-SERIALIZATION ---------------------------------  */
-/* TODO : it's not decided weather this should stay in the enclave or not */
-void serialize_public_key(PublicKey pk, unsigned char* s, int* s_count);
-void serialize_short_public_key(ShortPublicKey spk, unsigned char* s, int* s_count);
-void serialize_master_secret_key(MasterSecretKey msk, unsigned char* s, int* s_count);
-void serialize_cipher(Ciphertext c, unsigned char* s, int* s_count);
-
-void deserialize_public_key(unsigned char s[], PublicKey* pk);
-void deserialize_short_public_key(unsigned char s[], ShortPublicKey* spk);
-void deserialize_master_secret_key(unsigned char s[], MasterSecretKey* msk);
-void deserialize_cipher(unsigned char s[], Ciphertext* c);
-/* ------- */
-
-
-/* SP-IBBE operations */
-/*
-int enclave_create_group(
-    GroupKeyEncryptedByPartitionKey gpKeys[], Ciphertext gpCiphers[],
-    ShortPublicKey pubKey, MasterSecretKey msk,
-    char **idSet, int idCount, int partitionCount);
-
-int user_decrypt_group_key(
-    GroupKey* gkey,
-    GroupKeyEncryptedByPartitionKey partEncKey, Ciphertext partCipher,
-    PublicKey key, UserPrivateKey ikey,
-    char* id, char idSet[][MAX_STRING_LENGTH], int idCount);
-
-int enclave_add_user_to_group(
-    Ciphertext partCipher[],
-    char* id, char** idSet, int* idCount, int* partitionCount
-);
-
-int enclave_remove_user_from_group(
-
-);
-*/
 unsigned char* gen_random_bytestream(int n);
 
 
-//#if defined (__cplusplus)
-//}
-//#endif
+#if defined (__cplusplus)
+}
+#endif
 
 #endif

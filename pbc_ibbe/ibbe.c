@@ -16,7 +16,6 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-pairing_t pairing;
 
 int setup_sgx_safe(PublicKey *puk, ShortPublicKey *spuk, MasterSecretKey *msk, int max_group_size, int argc, char** argv)
 {
@@ -31,15 +30,16 @@ int setup_sgx_safe(PublicKey *puk, ShortPublicKey *spuk, MasterSecretKey *msk, i
     {
         srand(time(NULL));
         pbc_random_set_deterministic(rand());
-        pbc_demo_pairing_init(pairing, argc, argv);
+        pbc_demo_pairing_init(spuk->pairing, argc, argv);
+        pbc_demo_pairing_init(puk->pairing, argc, argv);
     }
 
-    element_init_G1(g, pairing);
-    element_init_G2(h, pairing);
-    element_init_G1(w, pairing);
-    element_init_GT(v, pairing);
-    element_init_Zr(gamma, pairing);
-    element_init_Zr(temp1, pairing);
+    element_init_G1(g, spuk->pairing);
+    element_init_G2(h, spuk->pairing);
+    element_init_G1(w, spuk->pairing);
+    element_init_GT(v, spuk->pairing);
+    element_init_Zr(gamma, spuk->pairing);
+    element_init_Zr(temp1, spuk->pairing);
 
     // generate random values
     {
@@ -61,7 +61,7 @@ int setup_sgx_safe(PublicKey *puk, ShortPublicKey *spuk, MasterSecretKey *msk, i
         mpz_init(n);
         for (i = 0; i <= max_group_size; i++)
         {
-            element_init_G2(hRec[i], pairing);
+            element_init_G2(hRec[i], spuk->pairing);
             mpz_set_ui(n, (unsigned int)i);
             element_pow_mpz(temp1, gamma, n);
             element_pow_zn(hRec[i], h, temp1);
@@ -70,25 +70,25 @@ int setup_sgx_safe(PublicKey *puk, ShortPublicKey *spuk, MasterSecretKey *msk, i
 
         puk->h = hRec;
         puk->h_size = max_group_size + 2;
-        element_init_G1(puk->w, pairing);
-        element_init_GT(puk->v, pairing);
+        element_init_G1(puk->w, spuk->pairing);
+        element_init_GT(puk->v, spuk->pairing);
         element_set(puk->w, w);
         element_set(puk->v, v);
     }
 
     // define master secret key
     {
-        element_init_G1(msk->g, pairing);
-        element_init_Zr(msk->gamma, pairing);
+        element_init_G1(msk->g, spuk->pairing);
+        element_init_Zr(msk->gamma, spuk->pairing);
         element_set(msk->g, g);
         element_set(msk->gamma, gamma);
     }
 
     // define the short SGX safe public key
     {
-        element_init_G1(spuk->w, pairing);
-        element_init_GT(spuk->v, pairing);
-        element_init_G1(spuk->h, pairing);
+        element_init_G1(spuk->w, spuk->pairing);
+        element_init_GT(spuk->v, spuk->pairing);
+        element_init_G1(spuk->h, spuk->pairing);
         element_set(spuk->w, puk->w);
         element_set(spuk->v, puk->v);
         element_set(spuk->h, puk->h[0]);
@@ -102,11 +102,11 @@ int setup_sgx_safe(PublicKey *puk, ShortPublicKey *spuk, MasterSecretKey *msk, i
     return 0;
 }
 
-int extract_sgx_safe(MasterSecretKey msk, UserPrivateKey idkey, char* id)
+int extract_sgx_safe(ShortPublicKey spk, MasterSecretKey msk, UserPrivateKey idkey, char* id)
 {
     element_t hid;
-    element_init_Zr(hid, pairing);
-    element_init_G1(idkey, pairing);
+    element_init_Zr(hid, spk.pairing);
+    element_init_G1(idkey, spk.pairing);
 
     // compute gamma + hash
     element_from_hash(hid, id, strlen(id));
@@ -129,27 +129,26 @@ int encrypt_sgx_safe(BroadcastKey* bKey, Ciphertext *cipher,
     element_t product;
     element_t hash;
 
-    element_init_Zr(k, pairing);
-    element_init_G1(c1, pairing);
-    element_init_G2(c2, pairing);
-    element_init_G2(c3, pairing);
+    element_init_Zr(k, pubKey.pairing);
+    element_init_G1(c1, pubKey.pairing);
+    element_init_G2(c2, pubKey.pairing);
+    element_init_G2(c3, pubKey.pairing);
     element_random(k);
 
     // compute C1
     {
         element_pow_zn(c1, pubKey.w, k);
         element_invert(c1, c1);
-        //element_printf("C1 : %B\n", c1);
     }
 
     // compute C2 and C3
     {
-        element_init_Zr(product, pairing);
+        element_init_Zr(product, pubKey.pairing);
         element_set1(product);
         for (int i = 0; i < idCount; i++)
         {
             // compute hash
-            element_init_Zr(hash, pairing);
+            element_init_Zr(hash, pubKey.pairing);
             element_from_hash(hash, idSet[i], strlen(idSet[i]));
 
             // sum hash with gamma and multiply into product
@@ -167,7 +166,7 @@ int encrypt_sgx_safe(BroadcastKey* bKey, Ciphertext *cipher,
     // compute BroadcastKey
     {
         element_t key_element;
-        element_init_GT(key_element, pairing);
+        element_init_GT(key_element, pubKey.pairing);
         element_pow_zn(key_element, pubKey.v, k);
 
         // serialize to bytes and do a SHA
@@ -178,9 +177,9 @@ int encrypt_sgx_safe(BroadcastKey* bKey, Ciphertext *cipher,
         free(key_element_bytes);
     }
 
-    element_init_G1(cipher->c1, pairing);
-    element_init_G1(cipher->c2, pairing);
-    element_init_G1(cipher->h_pow_product_gamma_hash, pairing);
+    element_init_G1(cipher->c1, pubKey.pairing);
+    element_init_G1(cipher->c2, pubKey.pairing);
+    element_init_G1(cipher->h_pow_product_gamma_hash, pubKey.pairing);
     element_set(cipher->c1, c1);
     element_set(cipher->c2, c2);
     element_set(cipher->h_pow_product_gamma_hash, c3);
@@ -195,10 +194,10 @@ int encrypt_sgx_safe(BroadcastKey* bKey, Ciphertext *cipher,
 }
 
 // should have a correponding theorem in the paper.
-int add_user_sgx_safe(Ciphertext *cipher, MasterSecretKey msk, char* id)
+int add_user_sgx_safe(ShortPublicKey spk, Ciphertext *cipher, MasterSecretKey msk, char* id)
 {
     element_t hash;
-    element_init_Zr(hash, pairing);
+    element_init_Zr(hash, spk.pairing);
     element_from_hash(hash, id, strlen(id));
 
     element_add(hash, hash, msk.gamma);
@@ -215,7 +214,7 @@ int rekey_sgx_safe(BroadcastKey* bKey, Ciphertext *cipher, ShortPublicKey spk, M
     // generate a new k
     element_t k;
     {
-        element_init_Zr(k, pairing);
+        element_init_Zr(k, spk.pairing);
         element_random(k);
     }
 
@@ -232,7 +231,7 @@ int rekey_sgx_safe(BroadcastKey* bKey, Ciphertext *cipher, ShortPublicKey spk, M
     // compute new boradcast key K
     {
         element_t key_element;
-        element_init_GT(key_element, pairing);
+        element_init_GT(key_element, spk.pairing);
         element_pow_zn(key_element, spk.v, k);
 
         // serialize to bytes and do a SHA
@@ -256,7 +255,7 @@ int remove_user_sgx_safe(
     // generate a new k
     element_t k;
     {
-        element_init_Zr(k, pairing);
+        element_init_Zr(k, spk.pairing);
         element_random(k);
     }
 
@@ -268,7 +267,7 @@ int remove_user_sgx_safe(
 
         //  h_pow_product_gamma_hash ^ 1/(gamma + hash)
         element_t hash;
-        element_init_Zr(hash, pairing);
+        element_init_Zr(hash, spk.pairing);
         element_from_hash(hash, id, strlen(id));
         element_add(hash, hash, msk.gamma);
         element_invert(hash, hash);
@@ -281,7 +280,7 @@ int remove_user_sgx_safe(
     // compute new boradcast key K
     {
         element_t key_element;
-        element_init_GT(key_element, pairing);
+        element_init_GT(key_element, spk.pairing);
         element_pow_zn(key_element, spk.v, k);
 
         // serialize to bytes and do a SHA
@@ -303,17 +302,17 @@ int decrypt_sgx_safe(BroadcastKey* bKey, Ciphertext cipher,
     element_t e_1, e_2;
     element_t product, hash;
 
-    element_init_GT(e_1, pairing);
-    element_init_GT(e_2, pairing);
+    element_init_GT(e_1, pubKey.pairing);
+    element_init_GT(e_2, pubKey.pairing);
 
     // compute the exponent
     {
-        element_init_Zr(product, pairing);
+        element_init_Zr(product, pubKey.pairing);
         element_set1(product);
         for (int i = 0; i < idCount; i++)
         {
             // compute hash
-            element_init_Zr(hash, pairing);
+            element_init_Zr(hash, pubKey.pairing);
             element_from_hash(hash, idSet[i], strlen(idSet[i]));
 
             // sum hash with gamma and multiply into product
@@ -364,17 +363,17 @@ int decrypt_with_key_sgx_safe(BroadcastKey* bKey, Ciphertext cipher,
     element_t h_exp;
     element_t e1_hp;
 
-    element_init_GT(e_1, pairing);
-    element_init_GT(e_2, pairing);
-    element_init_Zr(sub_uni_exp, pairing);
-    element_init_Zr(h_exp, pairing);
-    element_init_G2(e1_hp, pairing);
+    element_init_GT(e_1, pubKey.pairing);
+    element_init_GT(e_2, pubKey.pairing);
+    element_init_Zr(sub_uni_exp, pubKey.pairing);
+    element_init_Zr(h_exp, pubKey.pairing);
+    element_init_G2(e1_hp, pubKey.pairing);
 
     // compute the p exponent used by the first pairing
     {
-        element_init_Zr(p_hash, pairing);
-        element_init_Zr(p_gamma_hash, pairing);
-        element_init_Zr(p_term, pairing);
+        element_init_Zr(p_hash, pubKey.pairing);
+        element_init_Zr(p_gamma_hash, pubKey.pairing);
+        element_init_Zr(p_term, pubKey.pairing);
         element_set1(p_hash);
         element_set1(p_gamma_hash);
         for (int i = 0; i < idCount; i++)
@@ -383,7 +382,7 @@ int decrypt_with_key_sgx_safe(BroadcastKey* bKey, Ciphertext cipher,
             if (strcmp(id, idSet[i]) != 0)
             {
                 // compute hash
-                element_init_Zr(hash, pairing);
+                element_init_Zr(hash, pubKey.pairing);
                 element_from_hash(hash, idSet[i], strlen(idSet[i]));
 
                 // include hash in products
@@ -452,11 +451,11 @@ int decrypt_user_no_optimizations(BroadcastKey* bKey, Ciphertext cipher, PublicK
     element_t temp1, temp2;
     element_t ztemp;
 
-    element_init_G1(htemp1, pairing);
-    element_init_G1(htemp2, pairing);
-    element_init_GT(temp1, pairing);
-    element_init_GT(temp2, pairing);
-    element_init_Zr(ztemp, pairing);
+    element_init_G1(htemp1, key.pairing);
+    element_init_G1(htemp2, key.pairing);
+    element_init_GT(temp1, key.pairing);
+    element_init_GT(temp2, key.pairing);
+    element_init_Zr(ztemp, key.pairing);
 
     element_t *hid;
     {
@@ -469,11 +468,11 @@ int decrypt_user_no_optimizations(BroadcastKey* bKey, Ciphertext cipher, PublicK
         // initialization
         for (i = 0; i < idNum; i++)
         {
-            element_init_Zr(polyA[i], pairing);
+            element_init_Zr(polyA[i], key.pairing);
             element_set0(polyA[i]);
-            element_init_Zr(polyB[i], pairing);
+            element_init_Zr(polyB[i], key.pairing);
             element_set0(polyB[i]);
-            element_init_Zr(hid[i], pairing);
+            element_init_Zr(hid[i], key.pairing);
             if (i < idNum - 1)
                 element_from_hash(hid[i], decryptUsrSet[i], strlen(decryptUsrSet[i]));
         }
@@ -562,10 +561,10 @@ void *decrypt_exponentiate_by_partition(void *pargs)
     element_t thread_temp2;
 
     element_t* ptemp = (element_t*) malloc(sizeof(element_t));
-    element_init_G1(*ptemp, pairing);
+    element_init_G1(*ptemp, args->key.pairing);
     element_set1(*ptemp);
 
-    element_init_G1(thread_temp2, pairing);
+    element_init_G1(thread_temp2, args->key.pairing);
 
     int i;
     for (i = args->start; i <= args->end - 3; i+=3)
@@ -612,11 +611,11 @@ int decrypt_user(BroadcastKey* bKey, Ciphertext cipher, PublicKey key, UserPriva
     element_t temp1, temp2;
     element_t ztemp;
 
-    element_init_G1(htemp1, pairing);
-    element_init_G1(htemp2, pairing);
-    element_init_GT(temp1, pairing);
-    element_init_GT(temp2, pairing);
-    element_init_Zr(ztemp, pairing);
+    element_init_G1(htemp1, key.pairing);
+    element_init_G1(htemp2, key.pairing);
+    element_init_GT(temp1, key.pairing);
+    element_init_GT(temp2, key.pairing);
+    element_init_Zr(ztemp, key.pairing);
 
     element_t *hid;
     {
@@ -629,11 +628,11 @@ int decrypt_user(BroadcastKey* bKey, Ciphertext cipher, PublicKey key, UserPriva
         /*initialization*/
         for (i = 0; i < idCount; i++)
         {
-            element_init_Zr(polyA[i], pairing);
+            element_init_Zr(polyA[i], key.pairing);
             element_set0(polyA[i]);
-            element_init_Zr(polyB[i], pairing);
+            element_init_Zr(polyB[i], key.pairing);
             element_set0(polyB[i]);
-            element_init_Zr(hid[i], pairing);
+            element_init_Zr(hid[i], key.pairing);
             if (i < idCount - 1)
                 element_from_hash(hid[i], decryptUsrSet[i], strlen(decryptUsrSet[i]));
         }
@@ -677,7 +676,7 @@ int decrypt_user(BroadcastKey* bKey, Ciphertext cipher, PublicKey key, UserPriva
             }
 
             element_t result;
-            element_init_G1(result, pairing);
+            element_init_G1(result, key.pairing);
             element_set1(result);
             // wait that threads are complete
             for(int thread_idx = 0; thread_idx < THREADS_COUNT; thread_idx++)
@@ -815,26 +814,6 @@ void serialize_cipher(Ciphertext c, unsigned char* s, int* s_count)
     printf("C2 : %d \n", element_length_in_bytes(c.c2));
     printf("CH : %d \n", element_length_in_bytes(c.h_pow_product_gamma_hash));
     //s = (unsigned char*) malloc(64);
-}
-
-void deserialize_public_key(unsigned char s[], PublicKey* pk)
-{
-
-}
-
-void deserialize_short_public_key(unsigned char s[], ShortPublicKey* spk)
-{
-
-}
-
-void deserialize_master_secret_key(unsigned char s[], MasterSecretKey* msk)
-{
-
-}
-
-void deserialize_cipher(unsigned char s[], Ciphertext* c)
-{
-
 }
 
 unsigned char* gen_random_bytestream(int n)

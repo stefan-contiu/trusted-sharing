@@ -6,8 +6,6 @@
 #include <string>
 #include <vector>
 
-/* ---- RUNS IN SGX ---- */
-
 int sp_ibbe_create_group(
     std::vector<EncryptedGroupKey>& gpKeys,
     std::vector<Ciphertext>& gpCiphers,
@@ -16,13 +14,14 @@ int sp_ibbe_create_group(
     std::vector<std::string> members,
     int usersPerPartition);
 
-/*
-int sp_ibbe_add_user_to_partition(
+int sp_ibbe_add_user(
+    ShortPublicKey pubKey,
+    MasterSecretKey msk,
+    std::vector<EncryptedGroupKey>& gpKeys,
+    std::vector<Ciphertext>& gpCiphers,
     std::vector<std::string>& members,
     std::string user_id,
-    Ciphertext& gpCipher,
     int usersPerPartition);
-*/
 
 int sp_ibbe_remove_user(
     ShortPublicKey pubKey,
@@ -31,11 +30,7 @@ int sp_ibbe_remove_user(
     std::vector<Ciphertext>& gpCiphers,
     std::vector<std::string>& members,
     std::string user_id,
-    int usersPerPartition
-);
-
-
-/* ---- DOES NOT RUN IN SGX ---- */
+    int usersPerPartition);
 
 int sp_ibbe_user_decrypt(
     GroupKey* gKey,
