@@ -57,7 +57,7 @@ std::string serialize_group_metadata(std::vector<EncryptedGroupKey>& k, std::vec
         unsigned char* c3_bytes = (unsigned char*) malloc(c3_size);
         element_to_bytes(c3_bytes, c[i].h_pow_product_gamma_hash);
         s.write(reinterpret_cast< const char* >(&(c[i].h_pow_product_gamma_hash)), c3_size);
-    }
+     }
     
     return s.str();
 }
@@ -66,6 +66,7 @@ void deserialize_group_metadata(std::string s_meta, std::vector<EncryptedGroupKe
 {
     k.clear();
     c.clear();
+    
     std::stringstream s(s_meta);
     
     // read header [count, c1_size, c2_size, c3_size]
@@ -78,10 +79,14 @@ void deserialize_group_metadata(std::string s_meta, std::vector<EncryptedGroupKe
     for(int i=0; i<count; i++)
     {
         // key and iv
+        EncryptedGroupKey egk;
+        k.push_back(egk);
         s.read(reinterpret_cast<char*>(&(k[i].encryptedKey)), sizeof(k[i].encryptedKey));
         s.read(reinterpret_cast<char*>(&(k[i].iv)), sizeof(k[i].iv));
         
         // ciphers
+        Ciphertext cipher;
+        c.push_back(cipher);
         // c1
         unsigned char c1_bytes[c1_size];
         s.read(reinterpret_cast<char*>(&(c1_bytes)), c1_size);
@@ -90,10 +95,12 @@ void deserialize_group_metadata(std::string s_meta, std::vector<EncryptedGroupKe
         // c2
         unsigned char c2_bytes[c2_size];
         s.read(reinterpret_cast<char*>(&(c2_bytes)), c2_size);
+        element_init_G1(c[i].c2, pairing);
         element_from_bytes(c[i].c2, c2_bytes);
         // c3
         unsigned char c3_bytes[c3_size];
         s.read(reinterpret_cast<char*>(&(c3_bytes)), c3_size);
+        element_init_G1(c[i].h_pow_product_gamma_hash, pairing);
         element_from_bytes(c[i].h_pow_product_gamma_hash, c3_bytes);
     }
 }

@@ -10,11 +10,11 @@ void deserialize_members(std::string s_members, std::vector<std::string>& member
 std::string serialize_group_metadata(std::vector<EncryptedGroupKey>& k, std::vector<Ciphertext>& c);
 void deserialize_group_metadata(std::string s_meta, std::vector<EncryptedGroupKey>& k, std::vector<Ciphertext>& c, pairing_t pairing);
 
-std::string serialize_public_key();
-void deserialize_public_key();
+std::string serialize_public_key(PublicKey pk);
+void deserialize_public_key(std::string s_pk, PublicKey& pk);
 
-std::string serialize_short_public_key();
-void deserialize_short_public_key();
+std::string serialize_short_public_key(ShortPublicKey spk);
+void deserialize_short_public_key(std::string s_spk, ShortPublicKey& spk);
 
 std::string serialize_user_key();
 void deserialize_user_key();

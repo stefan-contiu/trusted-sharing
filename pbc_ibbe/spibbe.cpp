@@ -1,7 +1,6 @@
 /*
  *  TODO : The random and AES methods need to be replaced with the SGX ones.
  *  TODO : protect MSK by enclave private key.
- *  TODO : group signature scheme for the enclaves.
  */
 
 #include "ibbe.h"
@@ -101,7 +100,6 @@ void sgx_aes_decrypt(
     EVP_CIPHER_CTX_free(ctx);
 }
 
-
 int sp_ibbe_create_group(
     std::vector<EncryptedGroupKey>& gpKeys,
     std::vector<Ciphertext>& gpCiphers,
@@ -133,7 +131,7 @@ int sp_ibbe_create_group(
         // get a broadcast and ciphertext for the partition
         BroadcastKey bKey;
         Ciphertext bCipher;
-        encrypt_sgx_safe(&bKey, &bCipher, pubKey, msk, idPartition, pEnd - pStart);
+        encrypt_sgx_safe(&bKey, &bCipher, pubKey, msk, idPartition, pEnd - pStart); 
 
         // encrypt the group key by the broadcast key
         EncryptedGroupKey egk;

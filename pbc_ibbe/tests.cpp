@@ -262,7 +262,7 @@ void ftest_remove_decrypt_all(int argc, char** argv, int g_size, int p_size)
 void admin_api(int g_size, int p_size)
 {
     Configuration::UsersPerPartition = p_size;
-    AdminApi admin("master");
+    AdminApi admin("master", new RedisCloud());
     
     std::vector<std::string> members;
     generate_members(members, 0, g_size);
@@ -270,4 +270,128 @@ void admin_api(int g_size, int p_size)
     admin.CreateGroup("friends", members);
     //admin.AddUserToGroup("friends", "jim");
     //admin.RemoveUserFromGroup("friends", "bob");
+}
+
+void micro_spibbe_create_group()
+{
+    printf("MICROBENCHMARKS CREATE GROUP ------ \n");
+    int g_size = 16;
+    int p_size = 2000;
+    
+    for (int i=0; i<17; i++)
+    {
+        if (g_size > p_size)
+        {
+            Configuration::UsersPerPartition = p_size;
+        }
+        else
+        {
+            Configuration::UsersPerPartition = g_size;
+        }
+        
+       // AdminApi admin("master", new RedisCloud());
+        AdminApi admin("master", new DropboxCloud());
+    
+        std::vector<std::string> members;
+        generate_members(members, 0, g_size);
+        admin.CreateGroup("friends", members);
+
+        g_size = g_size * 2;
+    }
+}
+
+void micro_spibbe_add_user()
+{
+    printf("MICROBENCHMARKS ADD USER ------ \n");
+    int g_size = 16;
+    int p_size = 2000;
+    
+    std::vector<std::string> membersToAdd;
+    generate_members(membersToAdd, 5000000, 5000100);
+    int new_member = 0;
+    
+    for (int i=0; i<17; i++)
+    {
+        if (g_size > p_size)
+        {
+            Configuration::UsersPerPartition = p_size;
+        }
+        else
+        {
+            Configuration::UsersPerPartition = g_size;
+        }
+        
+        // generate a group of desired size
+        AdminApi admin("master", new RedisCloud());
+        std::vector<std::string> members;
+        generate_members(members, 0, g_size);
+        admin.CreateGroup("friends", members);
+    
+        // add a user to the group
+        std::string new_user = membersToAdd[new_member++];
+        admin.AddUserToGroup("friends", new_user);
+
+        g_size = g_size * 2;
+    }
+}
+
+void micro_spibbe_remove_user()
+{
+    printf("MICROBENCHMARKS REMOVE USER ------ \n");
+    int g_size = 16;
+    int p_size = 2000;
+    
+    for (int i=0; i<17; i++)
+    {
+        if (g_size > p_size)
+        {
+            Configuration::UsersPerPartition = p_size;
+        }
+        else
+        {
+            Configuration::UsersPerPartition = g_size;
+        }
+        
+        // generate a group of desired size
+        AdminApi admin("master", new RedisCloud());
+        std::vector<std::string> members;
+        generate_members(members, 0, g_size);
+        admin.CreateGroup("friends", members);
+    
+        // remove a user from the group
+        admin.RemoveUserFromGroup("friends", members[1]);
+
+        g_size = g_size * 2;
+    }
+}
+
+void micro_spibbe_decrypt_key()
+{
+    printf("MICROBENCHMARKS DECRYPT KEY ------ \n");
+    int g_size = 16;
+    int p_size = 2000;
+    
+    for (int i=0; i<17; i++)
+    {
+        if (g_size > p_size)
+        {
+            Configuration::UsersPerPartition = p_size;
+        }
+        else
+        {
+            Configuration::UsersPerPartition = g_size;
+        }
+        
+        // generate a group of desired size
+        AdminApi admin("master", new RedisCloud());
+        std::vector<std::string> members;
+        generate_members(members, 0, g_size);
+        admin.CreateGroup("friends", members);
+    
+        // have the first user retreive the group key
+        UserApi user(members[0], new RedisCloud());
+        GroupKey groupKey;
+        user.GetGroupKey("friends", &groupKey);
+        g_size = g_size * 2;
+    }
 }

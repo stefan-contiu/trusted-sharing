@@ -14,11 +14,25 @@ class AdminApi
         Cloud* cloud;
             
     public:
-        AdminApi(std::string admin_name);
+        AdminApi(std::string admin_name, Cloud* cloud);
         ~AdminApi();
         void CreateGroup(std::string groupName, std::vector<std::string> groupMembers);
         void AddUserToGroup(std::string groupName, std::string userName);
         void RemoveUserFromGroup(std::string groupName, std::string userName);
+};
+
+class UserApi
+{
+    private:
+        PublicKey pk;
+        UserPrivateKey upk;
+        std::string user_name;
+        Cloud* cloud;
+        
+    public:
+        UserApi(std::string user_name, Cloud* cloud);
+        ~UserApi();
+        void GetGroupKey(std::string groupName, GroupKey* groupKey);
 };
 
 class Configuration
