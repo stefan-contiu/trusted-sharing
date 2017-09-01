@@ -95,9 +95,6 @@ static inline void print_hex(unsigned char *h, int l)
     printf("\n");
 }
 
-unsigned char* gen_random_bytestream(int n);
-
-
 #if defined (__cplusplus)
 }
 #endif
