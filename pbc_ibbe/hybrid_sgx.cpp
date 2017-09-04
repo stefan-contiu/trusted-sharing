@@ -62,13 +62,32 @@ int rsa_encryption(
         ciphertext,
         rsa,
         RSA_PKCS1_PADDING);
-        
+                
     return ciphertext_size;
+}
+
+int rsa_decryption(
+    unsigned char* ciphertext, int ciphertext_length,
+    char* key, int key_length,
+    unsigned char* plaintext)
+{
+    BIO *bio_buffer = NULL;
+    RSA *rsa = NULL;
+
+    bio_buffer = BIO_new_mem_buf((void*)key, key_length);
+    PEM_read_bio_RSAPrivateKey(bio_buffer, &rsa, 0, NULL);
+    
+    int plaintext_length = RSA_private_decrypt(
+        ciphertext_length,
+        ciphertext,
+        plaintext,
+        rsa,
+        RSA_PKCS1_PADDING);
+    return plaintext_length;
 }
 
 void hybrid_sgx_create_group(std::vector<std::string> members, std::vector<std::string>& encryptedKeys)
 {
-    printf("HYBRID CREATE GROUP, members : %d\n", members.size());
     encryptedKeys.clear();
     
     // generate the group an AES key
@@ -88,8 +107,27 @@ void hybrid_sgx_create_group(std::vector<std::string> members, std::vector<std::
     }
 }
 
-void hybrid_sgx_add_member()
+void hybrid_sgx_add_user(std::vector<std::string>& members, std::vector<std::string>& encryptedKeys, 
+    std::string user_id)
 {
+    // perform a key decryption
+    unsigned char* ciphertext = (unsigned char*) encryptedKeys[0].c_str();
+    int ciphertext_length = encryptedKeys[0].size();
+
+    unsigned char plaintext[4098]={};
+    int plaintext_length =
+        rsa_decryption(ciphertext, ciphertext_length, privateKey, strlen(privateKey), plaintext);
+    
+    // perform a key encryption
+    unsigned char new_member_ciphertext[4098]={};
+    int new_cipher_length = 
+        rsa_encryption(plaintext, plaintext_length, publicKey, strlen(publicKey), 
+        new_member_ciphertext);
+        
+    // append data and leave
+    std::string s(reinterpret_cast<char*>(new_member_ciphertext), new_cipher_length);
+        encryptedKeys.push_back(s);
+    members.push_back(user_id);
 }
 
 void hybrid_sgx_remove_member()

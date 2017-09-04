@@ -88,13 +88,6 @@ int decrypt_user_no_optimizations(BroadcastKey* bKey,
     Ciphertext cipher, PublicKey key, UserPrivateKey ikey,
     char* id, char idSet[][MAX_STRING_LENGTH], int idCount);
 
-static inline void print_hex(unsigned char *h, int l)
-{
-    for (int i=0; i<l; i++)
-        printf("%02X", h[i]);
-    printf("\n");
-}
-
 #if defined (__cplusplus)
 }
 #endif

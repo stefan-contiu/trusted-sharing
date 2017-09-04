@@ -1,25 +1,10 @@
 #include "admin_api.h"
 #include "spibbe.h"
 #include "serialization.h"
-#include <time.h>
-
-// below macros define which microbenchmarks to be reported
-#define MICRO_CREATE
-#define MICRO_ADD
-#define MICRO_REMOVE
+#include "microbench.h"
 
 std::string Configuration::CurveFile = "a.param";
 int Configuration::UsersPerPartition;
-
-std::string get_group_members_key(std::string groupName)
-{
-    return groupName + ".members";
-}
-
-std::string get_group_meta_key(std::string groupName)
-{
-    return groupName + ".meta";
-}
 
 AdminApi::AdminApi(std::string admin_name, Cloud* cloud)
 {
@@ -31,9 +16,6 @@ AdminApi::AdminApi(std::string admin_name, Cloud* cloud)
         
     this->cloud = cloud;
 }
-
-#define start_clock clock_gettime(CLOCK_MONOTONIC, &start);
-#define end_clock(m) clock_gettime(CLOCK_MONOTONIC, &finish); double m = (finish.tv_sec - start.tv_sec) + ((finish.tv_nsec - start.tv_nsec) / 1000000000.0);
 
 void AdminApi::CreateGroup(std::string groupName, std::vector<std::string> groupMembers)
 {
@@ -55,8 +37,8 @@ void AdminApi::CreateGroup(std::string groupName, std::vector<std::string> group
 #endif 
 
     /* ------------ SERIALIZATION ------------ */
-#ifdef MICRO_CREATE
-    start_clock
+#ifdef MICRO_CREATE 
+    start_clock 
 #endif 
     std::string s_members = serialize_members(groupMembers);
     std::string s_meta = serialize_group_metadata(gpKeys, gpCiphers);
