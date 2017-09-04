@@ -6,7 +6,7 @@
 std::string Configuration::CurveFile = "a.param";
 int Configuration::UsersPerPartition;
 
-AdminApi::AdminApi(std::string admin_name, Cloud* cloud)
+SpibbeApi::SpibbeApi(std::string admin_name, Cloud* cloud)
 {
     // system set-up
     PublicKey pubKey;
@@ -17,7 +17,7 @@ AdminApi::AdminApi(std::string admin_name, Cloud* cloud)
     this->cloud = cloud;
 }
 
-void AdminApi::CreateGroup(std::string groupName, std::vector<std::string> groupMembers)
+void SpibbeApi::CreateGroup(std::string groupName, std::vector<std::string> groupMembers)
 {
     std::vector<EncryptedGroupKey> gpKeys;
     std::vector<Ciphertext> gpCiphers;
@@ -59,7 +59,7 @@ void AdminApi::CreateGroup(std::string groupName, std::vector<std::string> group
 
 }
 
-void AdminApi::AddUserToGroup(std::string groupName, std::string userName)
+void SpibbeApi::AddUserToGroup(std::string groupName, std::string userName)
 {
 #ifdef MICRO_ADD
     struct timespec start, finish;
@@ -118,7 +118,7 @@ void AdminApi::AddUserToGroup(std::string groupName, std::string userName)
 #endif 
 }
 
-void AdminApi::RemoveUserFromGroup(std::string groupName, std::string userName)
+void SpibbeApi::RemoveUserFromGroup(std::string groupName, std::string userName)
 {
 #ifdef MICRO_REMOVE
     struct timespec start, finish;
@@ -177,26 +177,37 @@ void AdminApi::RemoveUserFromGroup(std::string groupName, std::string userName)
 #endif 
 }
 
-AdminApi::~AdminApi()
-{
-    // TODO : any clean-up?
-}
-
 
 /*
  * USER API ----------------------------------------------------------
  */
 UserApi::UserApi(std::string user_name, Cloud* cloud)
 {
-    // TODO : ...
+    this->user_name = user_name;
+    this->cloud = cloud;
 }
 
-UserApi::~UserApi()
-{
-    // TODO : any clean-up?
-}
-        
 void UserApi::GetGroupKey(std::string groupName, GroupKey* groupKey)
 {
-    // TODO : any clean-up?
+    // retreive data from cloud
+    std::string s_members = this->cloud->get_text(get_group_members_key(groupName));
+    std::string s_meta = this->cloud->get_text(get_group_meta_key(groupName));
+    
+    // deserialize
+    std::vector<std::string> members;
+    std::vector<EncryptedGroupKey> gpKeys;
+    std::vector<Ciphertext> gpCiphers;
+    deserialize_members(s_members, members);
+    deserialize_group_metadata(s_meta, gpKeys, gpCiphers, this->spk.pairing);
+    
+    // decrypt 
+    /*
+    sp_ibbe_user_decrypt(groupKey, gpKeys, gpCiphers, 
+        publicKey,
+        UserPrivateKey userKey,
+        std::string user_id,
+        std::vector<std::string> members,
+        int usersPerPartition);
+    );
+    */
 }

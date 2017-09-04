@@ -4,10 +4,11 @@
 #include <fstream>
 #include <openssl/pem.h>
 #include <openssl/rsa.h>
+#include <algorithm>
 
 /* THIS SAMPLE RSA KEY IS: 2048 bit */
 /* Equivalent of a PBC Type A Curve of */
-char publicKey[]="-----BEGIN PUBLIC KEY-----\n"\
+char rsaPublicKey[]="-----BEGIN PUBLIC KEY-----\n"\
 "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAy8Dbv8prpJ/0kKhlGeJY\n"\
 "ozo2t60EG8L0561g13R29LvMR5hyvGZlGJpmn65+A4xHXInJYiPuKzrKUnApeLZ+\n"\
 "vw1HocOAZtWK0z3r26uA8kQYOKX9Qt/DbCdvsF9wF8gRK0ptx9M6R13NvBxvVQAp\n"\
@@ -17,7 +18,7 @@ char publicKey[]="-----BEGIN PUBLIC KEY-----\n"\
 "wQIDAQAB\n"\
 "-----END PUBLIC KEY-----\n";
   
-char privateKey[]="-----BEGIN RSA PRIVATE KEY-----\n"\
+char rsaPrivateKey[]="-----BEGIN RSA PRIVATE KEY-----\n"\
 "MIIEowIBAAKCAQEAy8Dbv8prpJ/0kKhlGeJYozo2t60EG8L0561g13R29LvMR5hy\n"\
 "vGZlGJpmn65+A4xHXInJYiPuKzrKUnApeLZ+vw1HocOAZtWK0z3r26uA8kQYOKX9\n"\
 "Qt/DbCdvsF9wF8gRK0ptx9M6R13NvBxvVQApfc9jB9nTzphOgM4JiEYvlV8FLhg9\n"\
@@ -45,48 +46,7 @@ char privateKey[]="-----BEGIN RSA PRIVATE KEY-----\n"\
 "uJSUVL5+CVjKLjZEJ6Qc2WZLl94xSwL71E41H4YciVnSCQxVc4Jw\n"\
 "-----END RSA PRIVATE KEY-----\n";
 
-int rsa_encryption(
-    unsigned char* plaintext, int plaintext_length,
-    char* key, int key_length,
-    unsigned char* ciphertext)
-{
-    BIO *bio_buffer = NULL;
-    RSA *rsa = NULL;
-
-    bio_buffer = BIO_new_mem_buf((void*)key, key_length);
-    PEM_read_bio_RSA_PUBKEY(bio_buffer, &rsa, 0, NULL);
-    
-    int ciphertext_size = RSA_public_encrypt(
-        plaintext_length,
-        plaintext,
-        ciphertext,
-        rsa,
-        RSA_PKCS1_PADDING);
-                
-    return ciphertext_size;
-}
-
-int rsa_decryption(
-    unsigned char* ciphertext, int ciphertext_length,
-    char* key, int key_length,
-    unsigned char* plaintext)
-{
-    BIO *bio_buffer = NULL;
-    RSA *rsa = NULL;
-
-    bio_buffer = BIO_new_mem_buf((void*)key, key_length);
-    PEM_read_bio_RSAPrivateKey(bio_buffer, &rsa, 0, NULL);
-    
-    int plaintext_length = RSA_private_decrypt(
-        ciphertext_length,
-        ciphertext,
-        plaintext,
-        rsa,
-        RSA_PKCS1_PADDING);
-    return plaintext_length;
-}
-
-void hybrid_sgx_create_group(std::vector<std::string> members, std::vector<std::string>& encryptedKeys)
+void hybrid_sgx_create_group(std::vector<std::string> members, std::vector<std::string>& encryptedKeys, bool useRsa)
 {
     encryptedKeys.clear();
     
@@ -98,9 +58,12 @@ void hybrid_sgx_create_group(std::vector<std::string> members, std::vector<std::
         // encrypt the sym key with the public key
         // TODO: would 4098 be sufficient for whatever we're holding?
         unsigned char ciphertext[4098]={};
-        int cipher_length = 
-            rsa_encryption(group_key, 32, publicKey, strlen(publicKey), ciphertext);
-        
+        int cipher_length = (
+            useRsa ? 
+                rsa_encryption(group_key, 32, rsaPublicKey, strlen(rsaPublicKey), ciphertext)
+                :
+                ecc_encryption(group_key, 32, rsaPublicKey, strlen(rsaPublicKey), ciphertext)
+        );
         // push to the returned array
         std::string s(reinterpret_cast<char*>(ciphertext), cipher_length);
         encryptedKeys.push_back(s);
@@ -108,7 +71,7 @@ void hybrid_sgx_create_group(std::vector<std::string> members, std::vector<std::
 }
 
 void hybrid_sgx_add_user(std::vector<std::string>& members, std::vector<std::string>& encryptedKeys, 
-    std::string user_id)
+    std::string user_id, bool useRsa)
 {
     // perform a key decryption
     unsigned char* ciphertext = (unsigned char*) encryptedKeys[0].c_str();
@@ -116,12 +79,12 @@ void hybrid_sgx_add_user(std::vector<std::string>& members, std::vector<std::str
 
     unsigned char plaintext[4098]={};
     int plaintext_length =
-        rsa_decryption(ciphertext, ciphertext_length, privateKey, strlen(privateKey), plaintext);
+        rsa_decryption(ciphertext, ciphertext_length, rsaPrivateKey, strlen(rsaPrivateKey), plaintext);
     
     // perform a key encryption
     unsigned char new_member_ciphertext[4098]={};
     int new_cipher_length = 
-        rsa_encryption(plaintext, plaintext_length, publicKey, strlen(publicKey), 
+        rsa_encryption(plaintext, plaintext_length, rsaPublicKey, strlen(rsaPublicKey), 
         new_member_ciphertext);
         
     // append data and leave
@@ -130,6 +93,11 @@ void hybrid_sgx_add_user(std::vector<std::string>& members, std::vector<std::str
     members.push_back(user_id);
 }
 
-void hybrid_sgx_remove_member()
+void hybrid_sgx_remove_user(std::vector<std::string>& members, std::vector<std::string>& encryptedKeys, std::string user_id, bool useRsa)
 {
+    // remove user
+    members.erase(std::remove(members.begin(), members.end(), user_id), members.end());
+    
+    // re-key by creating a new group
+    hybrid_sgx_create_group(members, encryptedKeys, useRsa);
 }

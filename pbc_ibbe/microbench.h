@@ -3,7 +3,10 @@
 
 #include <time.h>
 
-#define MICRO_CREATE
+// TODO : optimal value is 17. Keep 10 for testing.
+#define MICRO_POINTS 10
+
+//#define MICRO_CREATE
 #define MICRO_ADD
 #define MICRO_REMOVE
 

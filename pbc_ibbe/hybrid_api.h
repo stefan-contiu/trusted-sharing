@@ -4,15 +4,15 @@
 #include "ibbe.h"
 #include "spibbe.h"
 #include "cloud.h"
+#include "admin_api.h"
 
-class HybridApi
+class HybridApi : public AdminApi
 {
     private:
-        std::string admin_name;
-        Cloud* cloud;
+        bool useRsa;
             
     public:
-        HybridApi(std::string admin_name, Cloud* cloud);
+        HybridApi(std::string admin_name, Cloud* cloud, bool useRsa = true);
         ~HybridApi();
         void CreateGroup(std::string groupName, std::vector<std::string> groupMembers);
         void AddUserToGroup(std::string groupName, std::string userName);

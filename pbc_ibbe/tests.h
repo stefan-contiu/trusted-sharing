@@ -1,6 +1,8 @@
 #ifndef TESTS_H
 #define TESTS_H
 
+#include "admin_api.h"
+
 /*
  *   FUNCTIONAL TESTS
  */
@@ -17,21 +19,10 @@ void admin_api(int g_size, int p_size);
  */
 
 // MICROBENCHMARKS
-void micro_spibbe_create_group();
-void micro_spibbe_add_user();
-void micro_spibbe_remove_user();
-void micro_spibbe_decrypt_key();
-
-void micro_rsa_create_group();
-void micro_rsa_add_user();
-void micro_rsa_remove_user();
-void micro_rsa_decrypt_key();
-
-void micro_keytree_create_group();
-void micro_keytree_add_user();
-void micro_keytree_remove_user();
-void micro_keytree_decrypt_user();
-
+void micro_create_group(AdminApi* adminApi);
+void micro_add_user(AdminApi* adminApi);
+void micro_remove_user(AdminApi* adminApi);
+void micro_decrypt_key();
 
 // TESTS_H
 #endif

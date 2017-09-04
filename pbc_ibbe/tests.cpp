@@ -2,6 +2,8 @@
 #include "spibbe.h"
 #include "tests.h"
 #include "admin_api.h"
+#include "hybrid_api.h"
+#include "microbench.h"
 #include <stdio.h>
 #include <time.h>
 #include <string>
@@ -262,7 +264,7 @@ void ftest_remove_decrypt_all(int argc, char** argv, int g_size, int p_size)
 void admin_api(int g_size, int p_size)
 {
     Configuration::UsersPerPartition = p_size;
-    AdminApi admin("master", new RedisCloud());
+    SpibbeApi admin("master", new RedisCloud());
     
     std::vector<std::string> members;
     generate_members(members, 0, g_size);
@@ -272,13 +274,12 @@ void admin_api(int g_size, int p_size)
     //admin.RemoveUserFromGroup("friends", "bob");
 }
 
-void micro_spibbe_create_group()
+void micro_create_group(AdminApi* admin)
 {
-    printf("MICROBENCHMARKS CREATE GROUP ------ \n");
     int g_size = 16;
     int p_size = 2000;
     
-    for (int i=0; i<17; i++)
+    for (int i=0; i<MICRO_POINTS; i++)
     {
         if (g_size > p_size)
         {
@@ -289,20 +290,16 @@ void micro_spibbe_create_group()
             Configuration::UsersPerPartition = g_size;
         }
         
-       // AdminApi admin("master", new RedisCloud());
-        AdminApi admin("master", new DropboxCloud());
-    
         std::vector<std::string> members;
         generate_members(members, 0, g_size);
-        admin.CreateGroup("friends", members);
+        admin->CreateGroup("friends", members);
 
         g_size = g_size * 2;
     }
 }
 
-void micro_spibbe_add_user()
+void micro_add_user(AdminApi* admin)
 {
-    printf("MICROBENCHMARKS ADD USER ------ \n");
     int g_size = 16;
     int p_size = 2000;
     
@@ -310,7 +307,7 @@ void micro_spibbe_add_user()
     generate_members(membersToAdd, 5000000, 5000100);
     int new_member = 0;
     
-    for (int i=0; i<17; i++)
+    for (int i=0; i<MICRO_POINTS; i++)
     {
         if (g_size > p_size)
         {
@@ -322,26 +319,24 @@ void micro_spibbe_add_user()
         }
         
         // generate a group of desired size
-        AdminApi admin("master", new RedisCloud());
         std::vector<std::string> members;
         generate_members(members, 0, g_size);
-        admin.CreateGroup("friends", members);
+        admin->CreateGroup("friends", members);
     
         // add a user to the group
         std::string new_user = membersToAdd[new_member++];
-        admin.AddUserToGroup("friends", new_user);
+        admin->AddUserToGroup("friends", new_user);
 
         g_size = g_size * 2;
     }
 }
 
-void micro_spibbe_remove_user()
+void micro_remove_user(AdminApi* admin)
 {
-    printf("MICROBENCHMARKS REMOVE USER ------ \n");
     int g_size = 16;
     int p_size = 2000;
     
-    for (int i=0; i<17; i++)
+    for (int i=0; i<MICRO_POINTS; i++)
     {
         if (g_size > p_size)
         {
@@ -353,13 +348,12 @@ void micro_spibbe_remove_user()
         }
         
         // generate a group of desired size
-        AdminApi admin("master", new RedisCloud());
         std::vector<std::string> members;
         generate_members(members, 0, g_size);
-        admin.CreateGroup("friends", members);
+        admin->CreateGroup("friends", members);
     
         // remove a user from the group
-        admin.RemoveUserFromGroup("friends", members[1]);
+        admin->RemoveUserFromGroup("friends", members[1]);
 
         g_size = g_size * 2;
     }
@@ -371,7 +365,7 @@ void micro_spibbe_decrypt_key()
     int g_size = 16;
     int p_size = 2000;
     
-    for (int i=0; i<17; i++)
+    for (int i=0; i<MICRO_POINTS; i++)
     {
         if (g_size > p_size)
         {
@@ -383,7 +377,7 @@ void micro_spibbe_decrypt_key()
         }
         
         // generate a group of desired size
-        AdminApi admin("master", new RedisCloud());
+        SpibbeApi admin("master", new RedisCloud());
         std::vector<std::string> members;
         generate_members(members, 0, g_size);
         admin.CreateGroup("friends", members);
