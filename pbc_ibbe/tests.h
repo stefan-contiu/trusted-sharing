@@ -22,7 +22,7 @@ void admin_api(int g_size, int p_size);
 void micro_create_group(AdminApi* adminApi);
 void micro_add_user(AdminApi* adminApi);
 void micro_remove_user(AdminApi* adminApi);
-void micro_decrypt_key();
+void micro_decrypt_key(AdminApi* adminApi, UserApi* userApi);
 
 // TESTS_H
 #endif

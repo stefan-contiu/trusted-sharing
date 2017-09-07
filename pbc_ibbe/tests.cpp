@@ -359,12 +359,12 @@ void micro_remove_user(AdminApi* admin)
     }
 }
 
-void micro_spibbe_decrypt_key()
+void micro_decrypt_key(AdminApi* admin, UserApi* user)
 {
     printf("MICROBENCHMARKS DECRYPT KEY ------ \n");
     int g_size = 16;
     int p_size = 2000;
-    
+ 
     for (int i=0; i<MICRO_POINTS; i++)
     {
         if (g_size > p_size)
@@ -377,15 +377,12 @@ void micro_spibbe_decrypt_key()
         }
         
         // generate a group of desired size
-        SpibbeApi admin("master", new RedisCloud());
         std::vector<std::string> members;
         generate_members(members, 0, g_size);
-        admin.CreateGroup("friends", members);
+        admin->CreateGroup("friends", members);
     
-        // have the first user retreive the group key
-        UserApi user(members[0], new RedisCloud());
         GroupKey groupKey;
-        user.GetGroupKey("friends", &groupKey);
+        user->GetGroupKey("friends", &groupKey);
         g_size = g_size * 2;
     }
 }

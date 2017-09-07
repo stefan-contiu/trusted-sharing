@@ -4,6 +4,9 @@
 #include <iostream>
 #include <sstream>
 
+// TO BE REMOVER, it is only used for print_hex
+#include "sgx_crypto.h"
+
 std::string serialize_members(std::vector<std::string>& members)
 {
     std::stringstream s;
@@ -41,23 +44,28 @@ std::string serialize_group_metadata(std::vector<EncryptedGroupKey>& k, std::vec
     for(int i = 0; i < k.size(); i++)
     {
         // key & iv
+        printf("wsize k iv: %d %d \n", sizeof(k[i].encryptedKey), sizeof(k[i].iv));
         s.write(reinterpret_cast< const char* >(&(k[i].encryptedKey)), sizeof(k[i].encryptedKey));
         s.write(reinterpret_cast< const char* >(&(k[i].iv)), sizeof(k[i].iv));
+        
+        printf("KEY : "); print_hex(k[i].encryptedKey, 32);
+        printf(" IV : "); print_hex(k[i].iv, 16);
         
         // cipher
         // c1
         unsigned char* c1_bytes = (unsigned char*) malloc(c1_size);
         element_to_bytes(c1_bytes, c[i].c1);
-        s.write(reinterpret_cast< const char* >(&(c[i].c1)), c1_size);
+        s.write(reinterpret_cast< const char* >(c1_bytes), c1_size);
+    
         // c2
         unsigned char* c2_bytes = (unsigned char*) malloc(c2_size);
         element_to_bytes(c2_bytes, c[i].c2);
-        s.write(reinterpret_cast< const char* >(&(c[i].c2)), c2_size);
+        s.write(reinterpret_cast< const char* >(c2_bytes), c2_size);
         // h_pow_product_gamma_hash
         unsigned char* c3_bytes = (unsigned char*) malloc(c3_size);
         element_to_bytes(c3_bytes, c[i].h_pow_product_gamma_hash);
-        s.write(reinterpret_cast< const char* >(&(c[i].h_pow_product_gamma_hash)), c3_size);
-     }
+        s.write(reinterpret_cast< const char* >(c3_bytes), c3_size);
+    }
     
     return s.str();
 }
@@ -78,29 +86,74 @@ void deserialize_group_metadata(std::string s_meta, std::vector<EncryptedGroupKe
     // read body
     for(int i=0; i<count; i++)
     {
+        printf("Position : %d\n", s.tellp());
+        printf("rsize k iv: %d %d \n", sizeof(k[i].encryptedKey), sizeof(k[i].iv));
+        
         // key and iv
         EncryptedGroupKey egk;
         k.push_back(egk);
         s.read(reinterpret_cast<char*>(&(k[i].encryptedKey)), sizeof(k[i].encryptedKey));
         s.read(reinterpret_cast<char*>(&(k[i].iv)), sizeof(k[i].iv));
+        printf("KEY : "); print_hex(k[i].encryptedKey, 32);
+        printf(" IV : "); print_hex(k[i].iv, 16);
         
         // ciphers
         Ciphertext cipher;
         c.push_back(cipher);
         // c1
-        unsigned char c1_bytes[c1_size];
-        s.read(reinterpret_cast<char*>(&(c1_bytes)), c1_size);
+        unsigned char c1_bytes[c1_size] = {};
+        s.read(reinterpret_cast<char*>(c1_bytes), c1_size);
         element_init_G1(c[i].c1, pairing);
         element_from_bytes(c[i].c1, c1_bytes);
+        
         // c2
         unsigned char c2_bytes[c2_size];
-        s.read(reinterpret_cast<char*>(&(c2_bytes)), c2_size);
+        s.read(reinterpret_cast<char*>(c2_bytes), c2_size);
         element_init_G1(c[i].c2, pairing);
         element_from_bytes(c[i].c2, c2_bytes);
         // c3
         unsigned char c3_bytes[c3_size];
-        s.read(reinterpret_cast<char*>(&(c3_bytes)), c3_size);
+        s.read(reinterpret_cast<char*>(c3_bytes), c3_size);
         element_init_G1(c[i].h_pow_product_gamma_hash, pairing);
         element_from_bytes(c[i].h_pow_product_gamma_hash, c3_bytes);
+    }
+}
+
+std::string serialize_hybrid_keys(std::vector<std::string>& encryptedKeys)
+{
+    std::stringstream s;
+    
+    int count = encryptedKeys.size();
+    s.write(reinterpret_cast<const char*>(&count), sizeof(count));
+    
+    int size = encryptedKeys[0].size();
+    s.write(reinterpret_cast<const char*>(&size), sizeof(size));
+    
+    for(int i=0; i<count; i++)
+    {
+        s.write(encryptedKeys[i].c_str(), size);
+    }
+    
+    return s.str();
+}
+
+void deserialize_hybrid_keys(std::string s_ek, std::vector<std::string>& encryptedKeys)
+{
+    encryptedKeys.clear();
+
+    std::stringstream s(s_ek);
+    
+    // read header [count, size]
+    int count, size;
+    s.read(reinterpret_cast<char*>(&count), sizeof(count));
+    s.read(reinterpret_cast<char*>(&size), sizeof(size));
+    
+    // read encrypted keys
+    for(int i=0; i<count; i++)
+    {
+        char ek[size];
+        s.read(ek, size);
+        std::string str_ek(ek, size);
+        encryptedKeys.push_back(str_ek);
     }
 }

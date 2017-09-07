@@ -2,6 +2,7 @@
 #include "admin_api.h"
 #include "hybrid_api.h"
 #include <stdio.h>
+#include "microbench.h"
 
 void sp_ibbe_functional_tests()
 {
@@ -20,20 +21,18 @@ void api_tests()
 void all_functional_tests()
 {
     sp_ibbe_functional_tests();
-    api_tests();
+    //api_tests();
 }
 
 int main(int argc, char **argv)
 {
-    // make sure to run BVTs when doing lower level changes
+    // basic validation tests
     // all_functional_tests();
 
-    micro_create_group(new SpibbeApi("master", new RedisCloud()));
-    micro_create_group(new HybridApi("master", new RedisCloud()));
-  
-    micro_add_user(new SpibbeApi("master", new RedisCloud()));
-    micro_add_user(new HybridApi("master", new RedisCloud()));
+    // microbenchmarks
+    microbenchmarks();
+     
+  /*  
     
-    micro_remove_user(new SpibbeApi("master", new RedisCloud()));
-    micro_remove_user(new HybridApi("master", new RedisCloud()));
+ */
 }

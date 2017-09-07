@@ -41,11 +41,6 @@ std::string RedisCloud::get_text(std::string key)
 /* 
  *  Dropbox Cloud Methods ----------------------------------------------
  */
-/*
-    TODO: since there is no C++ Api for Dropbox, check if pipelining to python commands would
-          do the job.
-*/
-
 
 DropboxCloud::DropboxCloud()
 {

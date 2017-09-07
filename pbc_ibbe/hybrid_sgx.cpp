@@ -101,3 +101,18 @@ void hybrid_sgx_remove_user(std::vector<std::string>& members, std::vector<std::
     // re-key by creating a new group
     hybrid_sgx_create_group(members, encryptedKeys, useRsa);
 }
+
+// WARNING !!!!  the method bellow should not be executed in SGX!
+void hybrid_user_decrypt(GroupKey* groupKey, std::vector<std::string>& members, std::vector<std::string>& encryptedKeys, std::string user_id)
+{
+    // find the index of the user
+    int pos = std::find(members.begin(), members.end(), user_id) - members.begin();
+
+    // perform a key decryption
+    unsigned char* ciphertext = (unsigned char*) encryptedKeys[pos].c_str();
+    int ciphertext_length = encryptedKeys[pos].size();
+
+    unsigned char plaintext[4098]={};
+    int plaintext_length =
+        rsa_decryption(ciphertext, ciphertext_length, rsaPrivateKey, strlen(rsaPrivateKey), *groupKey);
+}

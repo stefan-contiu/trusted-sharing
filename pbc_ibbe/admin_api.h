@@ -22,6 +22,7 @@ class AdminApi
 class SpibbeApi : public AdminApi
 {
     private:
+        PublicKey pk;
         ShortPublicKey spk;
         MasterSecretKey msk;    
         
@@ -30,21 +31,40 @@ class SpibbeApi : public AdminApi
         void CreateGroup(std::string groupName, std::vector<std::string> groupMembers);
         void AddUserToGroup(std::string groupName, std::string userName);
         void RemoveUserFromGroup(std::string groupName, std::string userName);
+
+        PublicKey micro_get_pk() { return pk; }
+        void micro_get_upk(std::string user_id, UserPrivateKey upk);
 };
 
 class UserApi
 {
+protected:
+    std::string user_name;
+    Cloud* cloud;
+public:
+    virtual void GetGroupKey(std::string groupName, GroupKey* groupKey) = 0;
+};
+
+class SpibbeUserApi : public UserApi
+{
     private:
         PublicKey pk;
         UserPrivateKey upk;
-        std::string user_name;
-        Cloud* cloud;
         
     public:
-        UserApi(std::string user_name, Cloud* cloud);
-        ~UserApi() {}
+        SpibbeUserApi(std::string user_name, Cloud* cloud, SpibbeApi* admin);
+        ~SpibbeUserApi() {}
         void GetGroupKey(std::string groupName, GroupKey* groupKey);
 };
+
+class HybridUserApi : public UserApi
+{
+    public:
+        HybridUserApi(std::string user_name, Cloud* cloud);
+        ~HybridUserApi() {}
+        void GetGroupKey(std::string groupName, GroupKey* groupKey);
+};
+
 
 class Configuration
 {

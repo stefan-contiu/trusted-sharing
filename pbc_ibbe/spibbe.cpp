@@ -3,6 +3,7 @@
  *  TODO : protect MSK by enclave private key.
  */
 
+#include "sgx_crypto.h"
 #include "ibbe.h"
 #include "spibbe.h"
 #include <openssl/sha.h>
@@ -62,42 +63,6 @@ int get_user_index(std::vector<std::string>& members, std::string user_id)
         printf("ERROR the user is not part of the group !\n");
         return -1;
     }
-}
-
-void sgx_aes_encrypt(
-    unsigned char* plaintext,
-    int plaintext_size,
-    unsigned char* key, unsigned char* iv,
-    unsigned char* ciphertext)
-{
-    int len;
-    int ciphertext_len;
-    EVP_CIPHER_CTX *ctx;
-    ctx = EVP_CIPHER_CTX_new();
-    EVP_EncryptInit_ex(ctx, EVP_aes_256_ctr(), NULL, key, iv);
-    EVP_EncryptUpdate(ctx, ciphertext, &len, plaintext, plaintext_size);
-    ciphertext_len = len;
-    EVP_EncryptFinal_ex(ctx, ciphertext + len, &len);
-    ciphertext_len += len;
-    EVP_CIPHER_CTX_free(ctx);
-}
-
-void sgx_aes_decrypt(
-    unsigned char* ciphertext,
-    int ciphertext_len,
-    unsigned char* key, unsigned char* iv,
-    unsigned char* plaintext)
-{
-    EVP_CIPHER_CTX *ctx;
-    int len;
-    int plaintext_len;
-    ctx = EVP_CIPHER_CTX_new();
-    EVP_DecryptInit_ex(ctx, EVP_aes_256_ctr(), NULL, key, iv);
-    EVP_DecryptUpdate(ctx, plaintext, &len, ciphertext, ciphertext_len);
-    plaintext_len = len;
-    EVP_DecryptFinal_ex(ctx, (plaintext) + len, &len);
-    plaintext_len += len;
-    EVP_CIPHER_CTX_free(ctx);
 }
 
 int sp_ibbe_create_group(

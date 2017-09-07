@@ -434,6 +434,10 @@ int decrypt_with_key_sgx_safe(BroadcastKey* bKey, Ciphertext cipher,
 
 int decrypt_user_no_optimizations(BroadcastKey* bKey, Ciphertext cipher, PublicKey key, UserPrivateKey ikey, char* id, char idSet[][MAX_STRING_LENGTH], int idNum)
 {
+    element_printf("c1 = %B\n", cipher.c1);
+    element_printf("c2 = %B\n", cipher.c2);
+    element_printf("ch = %B\n", cipher.h_pow_product_gamma_hash);
+    
     int i, j;
     int mark = 1;
     char **decryptUsrSet = (char**)malloc(sizeof(char*) * (idNum - 1));
@@ -591,7 +595,7 @@ void *decrypt_exponentiate_by_partition(void *pargs)
 
 int decrypt_user(BroadcastKey* bKey, Ciphertext cipher, PublicKey key, UserPrivateKey ikey, const char* id, char idSet[][MAX_STRING_LENGTH], int idCount)
 {
-    if (idCount <= THREADS_COUNT)
+    if (idCount <= THREADS_COUNT * 2)
         return decrypt_user_no_optimizations(bKey, cipher, key, ikey, (char*)id, idSet, idCount);
 
     int i, j;
@@ -814,16 +818,4 @@ void serialize_cipher(Ciphertext c, unsigned char* s, int* s_count)
     printf("C2 : %d \n", element_length_in_bytes(c.c2));
     printf("CH : %d \n", element_length_in_bytes(c.h_pow_product_gamma_hash));
     //s = (unsigned char*) malloc(64);
-}
-
-unsigned char* gen_random_bytestream(int n)
-{
-    unsigned char* stream = (unsigned char*) malloc(n + 1);
-    size_t i;
-    for (i = 0; i < n; i++)
-    {
-        stream[i] = (unsigned char) (rand() % 255 + 1);
-    }
-    stream[n] = 0;
-    return stream;
 }
