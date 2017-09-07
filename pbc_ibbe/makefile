@@ -5,7 +5,8 @@ all:
 	-o test_ibbe.o
 
 cpp:
-	g++ ibbe.c spibbe.cpp tests.cpp -g main.cpp \
+	g++ -std=c++11 ibbe.c spibbe.cpp tests.cpp admin_api.cpp cloud.cpp serialization.cpp -g main.cpp \
+	/usr/local/lib/libcpp_redis.a  /usr/local/lib/libtacopie.a \
 	-lgmp -lpbc -lssl -lcrypto -lm -lpthread \
 	-L/usr/local/lib/ -I/usr/local/include/pbc \
 	-o test_ibbe.o
