@@ -198,17 +198,33 @@ SpibbeUserApi::SpibbeUserApi(std::string user_name, Cloud* cloud, SpibbeApi* adm
 
 void SpibbeUserApi::GetGroupKey(std::string groupName, GroupKey* groupKey)
 {
+#ifdef MICRO_DECRYPT
+    struct timespec start, finish;
+    start_clock
+#endif     
     // retreive data from cloud
     std::string s_members = this->cloud->get_text(get_group_members_key(groupName));
     std::string s_meta = this->cloud->get_text(get_group_meta_key(groupName));
-    
+#ifdef MICRO_DECRYPT
+    end_clock(m0) 
+#endif 
+
+#ifdef MICRO_DECRYPT
+    start_clock
+#endif     
     // deserialize
     std::vector<std::string> members;
     std::vector<EncryptedGroupKey> gpKeys;
     std::vector<Ciphertext> gpCiphers;
     deserialize_members(s_members, members);
     deserialize_group_metadata(s_meta, gpKeys, gpCiphers, this->pk.pairing);
-    
+#ifdef MICRO_REMOVE
+    end_clock(m1) 
+#endif
+
+#ifdef MICRO_DECRYPT
+    start_clock
+#endif         
     // decrypt 
     sp_ibbe_user_decrypt(groupKey, gpKeys, gpCiphers, 
         this->pk,
@@ -216,7 +232,8 @@ void SpibbeUserApi::GetGroupKey(std::string groupName, GroupKey* groupKey)
         this->user_name,
         members, 
         Configuration::UsersPerPartition);
-
-    printf("DECRYPTED GKEY : ");
-    print_hex(*groupKey, 32);
+#ifdef MICRO_REMOVE
+    end_clock(m2)
+    printf("DECRYPT_KEY,%d,%f,%f,%f\n", members.size(), m0, m1, m2);
+#endif 
 }

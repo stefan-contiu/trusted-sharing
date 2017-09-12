@@ -7,7 +7,7 @@
 #include "tests.h"
 
 // TODO : optimal value is 17. Keep 10 for testing.
-#define MICRO_POINTS 10
+#define MICRO_POINTS 17
 
 #define MICRO_CREATE
 #define MICRO_ADD
@@ -19,10 +19,19 @@
 
 static inline void microbenchmarks()
 {
-    SpibbeApi* spibbeAdmin = new SpibbeApi("master", new RedisCloud());
-    HybridApi* hybridAdmin = new HybridApi("master", new RedisCloud());
+    Configuration::UsersPerPartition = 2000;
+    std::string u = "test0@mail.com";
+    std::string a = "master";
+    
+    //Cloud* c = new RedisCloud();
+    Cloud* c = new DropboxCloud();
+    
+    SpibbeApi* spibbeAdmin = new SpibbeApi(a, c);
+    HybridApi* hybridAdmin = new HybridApi(a, c);
+    
+    SpibbeUserApi* spibbeUser = new SpibbeUserApi(u, c, spibbeAdmin);
+    HybridUserApi* hybridUser = new HybridUserApi(u, c);
 
-/*
     micro_create_group(spibbeAdmin);
     micro_create_group(hybridAdmin);
   
@@ -31,11 +40,7 @@ static inline void microbenchmarks()
     
     micro_remove_user(spibbeAdmin);
     micro_remove_user(hybridAdmin);
-*/
-
-    std::string u = "test0@mail.com";
-    SpibbeUserApi* spibbeUser = new SpibbeUserApi(u, new RedisCloud(), spibbeAdmin);
-    HybridUserApi* hybridUser = new HybridUserApi(u, new RedisCloud());
+    
     micro_decrypt_key(spibbeAdmin, spibbeUser);
     micro_decrypt_key(hybridAdmin, hybridUser);
 }

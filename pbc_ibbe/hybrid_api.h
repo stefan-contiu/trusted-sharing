@@ -14,6 +14,7 @@ class HybridApi : public AdminApi
     public:
         HybridApi(std::string admin_name, Cloud* cloud, bool useRsa = true);
         ~HybridApi();
+        void SystemInit() {}
         void CreateGroup(std::string groupName, std::vector<std::string> groupMembers);
         void AddUserToGroup(std::string groupName, std::string userName);
         void RemoveUserFromGroup(std::string groupName, std::string userName);

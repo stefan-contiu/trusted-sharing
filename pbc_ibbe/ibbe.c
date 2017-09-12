@@ -434,10 +434,6 @@ int decrypt_with_key_sgx_safe(BroadcastKey* bKey, Ciphertext cipher,
 
 int decrypt_user_no_optimizations(BroadcastKey* bKey, Ciphertext cipher, PublicKey key, UserPrivateKey ikey, char* id, char idSet[][MAX_STRING_LENGTH], int idNum)
 {
-    element_printf("c1 = %B\n", cipher.c1);
-    element_printf("c2 = %B\n", cipher.c2);
-    element_printf("ch = %B\n", cipher.h_pow_product_gamma_hash);
-    
     int i, j;
     int mark = 1;
     char **decryptUsrSet = (char**)malloc(sizeof(char*) * (idNum - 1));
@@ -623,7 +619,7 @@ int decrypt_user(BroadcastKey* bKey, Ciphertext cipher, PublicKey key, UserPriva
 
     element_t *hid;
     {
-        /*polynominal multiplication */
+        /* polynominal multiplication */
         /***************************************/
         element_t *polyA, *polyB;
         polyA = (element_t*)malloc(sizeof(element_t) * idCount);
@@ -645,8 +641,8 @@ int decrypt_user(BroadcastKey* bKey, Ciphertext cipher, PublicKey key, UserPriva
         element_set1(polyA[1]);
         for (i = 1; i < idCount - 1; i++)
         {
-            /*i-th polynomial*/
-            /*polyA * (r + H(ID))*/
+            /* i-th polynomial */
+            /* polyA * (r + H(ID)) */
             element_set1(polyA[i+1]);
             for (j = i; j >= 1; j--)
             {

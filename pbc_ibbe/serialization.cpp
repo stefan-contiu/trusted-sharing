@@ -44,12 +44,8 @@ std::string serialize_group_metadata(std::vector<EncryptedGroupKey>& k, std::vec
     for(int i = 0; i < k.size(); i++)
     {
         // key & iv
-        printf("wsize k iv: %d %d \n", sizeof(k[i].encryptedKey), sizeof(k[i].iv));
         s.write(reinterpret_cast< const char* >(&(k[i].encryptedKey)), sizeof(k[i].encryptedKey));
         s.write(reinterpret_cast< const char* >(&(k[i].iv)), sizeof(k[i].iv));
-        
-        printf("KEY : "); print_hex(k[i].encryptedKey, 32);
-        printf(" IV : "); print_hex(k[i].iv, 16);
         
         // cipher
         // c1
@@ -86,16 +82,11 @@ void deserialize_group_metadata(std::string s_meta, std::vector<EncryptedGroupKe
     // read body
     for(int i=0; i<count; i++)
     {
-        printf("Position : %d\n", s.tellp());
-        printf("rsize k iv: %d %d \n", sizeof(k[i].encryptedKey), sizeof(k[i].iv));
-        
         // key and iv
         EncryptedGroupKey egk;
         k.push_back(egk);
         s.read(reinterpret_cast<char*>(&(k[i].encryptedKey)), sizeof(k[i].encryptedKey));
         s.read(reinterpret_cast<char*>(&(k[i].iv)), sizeof(k[i].iv));
-        printf("KEY : "); print_hex(k[i].encryptedKey, 32);
-        printf(" IV : "); print_hex(k[i].iv, 16);
         
         // ciphers
         Ciphertext cipher;

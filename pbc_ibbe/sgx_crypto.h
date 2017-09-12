@@ -28,6 +28,8 @@ void sgx_aes_decrypt(unsigned char* ciphertext,
     unsigned char* key, unsigned char* iv,
     unsigned char* plaintext);
 
+// TODO : add SHA here too
+
 /* ------- RSA OPERATIONS ---------- */
 int rsa_encryption(unsigned char* plaintext, int plaintext_length,
     char* key, int key_length,

@@ -97,12 +97,10 @@ int ecc_encryption(unsigned char* plaintext, int plaintext_length,
     char* key, int key_length,
     unsigned char* ciphertext)
 {
-    
 }
 
 int ecc_decryption(unsigned char* ciphertext, int ciphertext_length,
     char* key, int key_length,
     unsigned char* plaintext)
 {
-    
 }

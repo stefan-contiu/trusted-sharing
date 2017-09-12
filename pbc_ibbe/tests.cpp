@@ -361,7 +361,6 @@ void micro_remove_user(AdminApi* admin)
 
 void micro_decrypt_key(AdminApi* admin, UserApi* user)
 {
-    printf("MICROBENCHMARKS DECRYPT KEY ------ \n");
     int g_size = 16;
     int p_size = 2000;
  

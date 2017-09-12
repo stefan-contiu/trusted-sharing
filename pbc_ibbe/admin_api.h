@@ -28,6 +28,7 @@ class SpibbeApi : public AdminApi
         
     public:
         SpibbeApi(std::string admin_name, Cloud* cloud);
+        
         void CreateGroup(std::string groupName, std::vector<std::string> groupMembers);
         void AddUserToGroup(std::string groupName, std::string userName);
         void RemoveUserFromGroup(std::string groupName, std::string userName);
