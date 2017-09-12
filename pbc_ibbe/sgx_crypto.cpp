@@ -1,6 +1,8 @@
 #include "sgx_crypto.h"
 #include <openssl/pem.h>
 #include <openssl/rsa.h>
+#include <openssl/sha.h>
+#include <openssl/evp.h>
 #include <stdlib.h>
 #include <unistd.h>
 
@@ -91,6 +93,13 @@ int rsa_decryption(
         rsa,
         RSA_PKCS1_PADDING);
     return plaintext_length;
+}
+
+unsigned char* sgx_sha256(const unsigned char *d, 
+    size_t n, 
+    unsigned char *md)
+{
+    return SHA256(d, n, md);
 }
 
 int ecc_encryption(unsigned char* plaintext, int plaintext_length,

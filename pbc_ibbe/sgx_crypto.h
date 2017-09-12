@@ -28,7 +28,10 @@ void sgx_aes_decrypt(unsigned char* ciphertext,
     unsigned char* key, unsigned char* iv,
     unsigned char* plaintext);
 
-// TODO : add SHA here too
+/* ------- SHA OPERATIONS ---------- */
+unsigned char* sgx_sha256(const unsigned char *d, 
+    size_t n, 
+    unsigned char *md);
 
 /* ------- RSA OPERATIONS ---------- */
 int rsa_encryption(unsigned char* plaintext, int plaintext_length,
@@ -56,4 +59,3 @@ int ecc_decryption(unsigned char* ciphertext, int ciphertext_length,
 
 // SGX_CRYPTO_H
 #endif
-

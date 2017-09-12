@@ -10,8 +10,7 @@
 
 #include "ibbe.h"
 #include "pbc_test.h"
-#include <openssl/sha.h>
-#include <openssl/evp.h>
+#include "sgx_crypto.h"
 #include <pthread.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -173,7 +172,7 @@ int encrypt_sgx_safe(BroadcastKey* bKey, Ciphertext *cipher,
         int generated_key_length = element_length_in_bytes(key_element);
         unsigned char* key_element_bytes = (unsigned char*) malloc(generated_key_length);
         element_to_bytes(key_element_bytes, key_element);
-        SHA256(key_element_bytes, generated_key_length, *bKey);
+        sgx_sha256(key_element_bytes, generated_key_length, *bKey);
         free(key_element_bytes);
     }
 
@@ -238,7 +237,7 @@ int rekey_sgx_safe(BroadcastKey* bKey, Ciphertext *cipher, ShortPublicKey spk, M
         int generated_key_length = element_length_in_bytes(key_element);
         unsigned char* key_element_bytes = (unsigned char*) malloc(generated_key_length);
         element_to_bytes(key_element_bytes, key_element);
-        SHA256(key_element_bytes, generated_key_length, *bKey);
+        sgx_sha256(key_element_bytes, generated_key_length, *bKey);
         free(key_element_bytes);
     }
 
@@ -287,7 +286,7 @@ int remove_user_sgx_safe(
         int generated_key_length = element_length_in_bytes(key_element);
         unsigned char* key_element_bytes = (unsigned char*) malloc(generated_key_length);
         element_to_bytes(key_element_bytes, key_element);
-        SHA256(key_element_bytes, generated_key_length, *bKey);
+        sgx_sha256(key_element_bytes, generated_key_length, *bKey);
         free(key_element_bytes);
     }
 
@@ -339,7 +338,7 @@ int decrypt_sgx_safe(BroadcastKey* bKey, Ciphertext cipher,
         int generated_key_length = element_length_in_bytes(e_1);
         unsigned char* key_element_bytes = (unsigned char*) malloc(generated_key_length);
         element_to_bytes(key_element_bytes, e_1);
-        SHA256(key_element_bytes, generated_key_length, *bKey);
+        sgx_sha256(key_element_bytes, generated_key_length, *bKey);
         free(key_element_bytes);
     }
 
@@ -417,7 +416,7 @@ int decrypt_with_key_sgx_safe(BroadcastKey* bKey, Ciphertext cipher,
         int generated_key_length = element_length_in_bytes(e_1);
         unsigned char* key_element_bytes = (unsigned char*) malloc(generated_key_length);
         element_to_bytes(key_element_bytes, e_1);
-        SHA256(key_element_bytes, generated_key_length, *bKey);
+        sgx_sha256(key_element_bytes, generated_key_length, *bKey);
         free(key_element_bytes);
     }
 
@@ -531,7 +530,7 @@ int decrypt_user_no_optimizations(BroadcastKey* bKey, Ciphertext cipher, PublicK
     int generated_key_length = element_length_in_bytes(temp1);
     unsigned char* key_element_bytes = (unsigned char*) malloc(generated_key_length);
     element_to_bytes(key_element_bytes, temp1);
-    SHA256(key_element_bytes, generated_key_length, *bKey);
+    sgx_sha256(key_element_bytes, generated_key_length, *bKey);
     free(key_element_bytes);
 
     free(hid);
@@ -710,7 +709,7 @@ int decrypt_user(BroadcastKey* bKey, Ciphertext cipher, PublicKey key, UserPriva
     int generated_key_length = element_length_in_bytes(temp1);
     unsigned char* key_element_bytes = (unsigned char*) malloc(generated_key_length);
     element_to_bytes(key_element_bytes, temp1);
-    SHA256(key_element_bytes, generated_key_length, *bKey);
+    sgx_sha256(key_element_bytes, generated_key_length, *bKey);
     free(key_element_bytes);
 
     free(hid);

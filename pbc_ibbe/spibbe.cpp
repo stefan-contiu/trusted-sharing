@@ -6,8 +6,6 @@
 #include "sgx_crypto.h"
 #include "ibbe.h"
 #include "spibbe.h"
-#include <openssl/sha.h>
-#include <openssl/evp.h>
 #include <pthread.h>
 #include <stdlib.h>
 #include <unistd.h>
