@@ -14,6 +14,8 @@ void ftest_add_remove_decrypt_all(int argc, char** argv, int g_size, int p_size)
 
 void admin_api(int g_size, int p_size);
 
+void test_admin_replay();
+
 /*
  *   PERFORMANCE TESTS
  */

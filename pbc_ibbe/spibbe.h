@@ -6,32 +6,49 @@
 #include <string>
 #include <vector>
 
-int sp_ibbe_create_group(
-    std::vector<EncryptedGroupKey>& gpKeys,
-    std::vector<Ciphertext>& gpCiphers,
+class Configuration
+{
+    public:
+        static int UsersPerPartition;
+        static std::string CurveFile;
+        static const int CipherElemSize = 128; 
+};
+
+typedef struct {
+    EncryptedGroupKey encGroupKey;
+    Ciphertext ciphertext;
+    std::vector<std::string> members;
+} SpibbePartition;
+
+/* SHOULD RUN IN SGX */ 
+unsigned char* sp_ibbe_create_group(
+    std::vector<SpibbePartition>& partitions, 
     ShortPublicKey pubKey,
     MasterSecretKey msk,
-    std::vector<std::string> members,
+    std::vector<std::string>& members,
     int usersPerPartition);
+
+int sp_ibbe_create_partition(
+    SpibbePartition& partition, 
+    ShortPublicKey pubKey,
+    MasterSecretKey msk,
+    GroupKey gKey,
+    std::vector<std::string>& members);
 
 int sp_ibbe_add_user(
     ShortPublicKey pubKey,
     MasterSecretKey msk,
-    std::vector<EncryptedGroupKey>& gpKeys,
-    std::vector<Ciphertext>& gpCiphers,
-    std::vector<std::string>& members,
-    std::string user_id,
-    int usersPerPartition);
+    SpibbePartition& partition,
+    std::string user_id);
 
 int sp_ibbe_remove_user(
     ShortPublicKey pubKey,
     MasterSecretKey msk,
-    std::vector<EncryptedGroupKey>& gpKeys,
-    std::vector<Ciphertext>& gpCiphers,
-    std::vector<std::string>& members,
+    std::vector<SpibbePartition>& partitions,
     std::string user_id,
-    int usersPerPartition);
+    int user_partition_index);
 
+// SHOULD NOT RUN IN SGX
 int sp_ibbe_user_decrypt(
     GroupKey* gKey,
     std::vector<EncryptedGroupKey>& gpKeys,

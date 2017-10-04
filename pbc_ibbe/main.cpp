@@ -26,9 +26,11 @@ void all_functional_tests()
 
 int main(int argc, char **argv)
 {
+    test_admin_replay();
+    
     // basic validation tests
-    // all_functional_tests();
+    //all_functional_tests();
 
     // microbenchmarks
-    microbenchmarks();
+    // microbenchmarks();
 }

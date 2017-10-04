@@ -14,6 +14,8 @@
 #include <string>
 #include <algorithm>
 
+const int Configuration::CipherElemSize;
+
 void sgx_random(int n, unsigned char b[])
 {
     size_t i;
@@ -63,21 +65,22 @@ int get_user_index(std::vector<std::string>& members, std::string user_id)
     }
 }
 
-int sp_ibbe_create_group(
-    std::vector<EncryptedGroupKey>& gpKeys,
-    std::vector<Ciphertext>& gpCiphers,
+unsigned char* sp_ibbe_create_group(
+    std::vector<SpibbePartition>& partitions,
     ShortPublicKey pubKey,
     MasterSecretKey msk,
-    std::vector<std::string> members,
+    std::vector<std::string>& members,
     int usersPerPartition)
 {
     // generate a random group key
     unsigned char* group_key = gen_random_bytestream(32);
-    //printf("GKEY : "); print_hex(group_key, 32);
+    printf("GKEY : "); print_hex(group_key, 32);
 
     // split idSet into partitions
     for (int p = 0; p * usersPerPartition < members.size(); p++)
     {
+        SpibbePartition partition;
+        
         int pStart = p * usersPerPartition;
         int pEnd   = pStart + usersPerPartition;
         if (pEnd > members.size())
@@ -89,23 +92,48 @@ int sp_ibbe_create_group(
         for (int i=pStart; i<pEnd; i++)
         {
             memcpy(idPartition[i - pStart], members[i].c_str(), MAX_STRING_LENGTH);
+            partition.members.push_back(members[i]);
         }
 
         // get a broadcast and ciphertext for the partition
         BroadcastKey bKey;
-        Ciphertext bCipher;
-        encrypt_sgx_safe(&bKey, &bCipher, pubKey, msk, idPartition, pEnd - pStart); 
+        encrypt_sgx_safe(&bKey, &(partition.ciphertext), pubKey, msk, idPartition, pEnd - pStart); 
 
         // encrypt the group key by the broadcast key
-        EncryptedGroupKey egk;
-        sgx_random(16, egk.iv);
-        sgx_aes_encrypt(group_key, 32, bKey, egk.iv, egk.encryptedKey);
+        sgx_random(16, partition.encGroupKey.iv);
+        sgx_aes_encrypt(group_key, 32, bKey, partition.encGroupKey.iv, partition.encGroupKey.encryptedKey);
 
-        gpKeys.push_back(egk);
-        gpCiphers.push_back(bCipher);
+        partitions.push_back(partition);
     }
+    
+    // TODO : encrypt group_key with enclave key before returning
+    return group_key;
 }
 
+int sp_ibbe_create_partition(
+    SpibbePartition& partition, 
+    ShortPublicKey pubKey,
+    MasterSecretKey msk,
+    GroupKey group_key,
+    std::vector<std::string>& members)
+{
+    // TODO : decrypt group key by using SGX enclave key
+
+    // HACK : scope of the method is currently for single users
+    // create new partition for a single user
+    BroadcastKey singleUserBKey;
+    Ciphertext bCipher;
+    char idSet[1][MAX_STRING_LENGTH];
+    memcpy(idSet[0], members[0].c_str(), MAX_STRING_LENGTH);
+    encrypt_sgx_safe(&singleUserBKey, &(partition.ciphertext), pubKey, msk, idSet, 1);
+
+    // encrypt the group key by the new broadcast key
+    EncryptedGroupKey egk;
+    sgx_random(16, egk.iv);
+    sgx_aes_encrypt(group_key, 32, singleUserBKey, partition.encGroupKey.iv, partition.encGroupKey.encryptedKey);
+
+    partition.members.push_back(members[0]);
+}
 
 int sp_ibbe_user_decrypt(
     GroupKey* gKey,
@@ -145,15 +173,19 @@ int sp_ibbe_user_decrypt(
 int sp_ibbe_add_user(
     ShortPublicKey pubKey,
     MasterSecretKey msk,
-    std::vector<EncryptedGroupKey>& gpKeys,
-    std::vector<Ciphertext>& gpCiphers,
-    std::vector<std::string>& members,
-    std::string user_id,
-    int usersPerPartition)
+    SpibbePartition& partition,
+    std::string user_id)
 {
+    add_user_sgx_safe(pubKey, &partition.ciphertext, msk, (char*) user_id.c_str());
+    partition.members.push_back(user_id);
+    return 0;
+    
+    /*
     // should we add to the last partition or create a new one
-    if (members.size() % usersPerPartition == 0)
+    if (partition.members.size() == 0)
     {
+        // TODO : once SGX support is added, make sure to decrypt the group key
+      
         // get the group_key by decrypting by first partition
         // TODO : O(m) decrypt should be a theorem
         BroadcastKey bKey;
@@ -184,85 +216,58 @@ int sp_ibbe_add_user(
 
         gpKeys.push_back(egk);
         gpCiphers.push_back(bCipher);
+        
     }
     else
     {
         // add to existing last partition
-        int p = get_partitions_count(members, usersPerPartition);
+        int p = get_partitions_count(partition.members, usersPerPartition);
         add_user_sgx_safe(pubKey, &(gpCiphers[p - 1]), msk, (char*) user_id.c_str());
     }
     members.push_back(user_id);
+     */
 }
-
 
 int sp_ibbe_remove_user(
     ShortPublicKey pubKey,
     MasterSecretKey msk,
-    std::vector<EncryptedGroupKey>& gpKeys,
-    std::vector<Ciphertext>& gpCiphers,
-    std::vector<std::string>& members,
+    std::vector<SpibbePartition>& partitions,
     std::string user_id,
-    int usersPerPartition)
+    int user_partition_index)
 {
     // generate new AES key
     unsigned char* group_key = gen_random_bytestream(32);
 
-    // find the partition of the user
-    int totalPartitions = get_partitions_count(members, usersPerPartition);
-    int userPartition = get_user_partition(members, user_id, usersPerPartition);
-
-    // for all the un-touched partitions, do an optimized re-key in O(1)
-    for (int p = 0; p < totalPartitions; p++)
-    {
-        // skip user partition and last one, they are treated by special case below
-        if (p != userPartition && p != totalPartitions - 1)
+    // for all un-touched partitions do an optimized re-key in O(1)
+    for(int i=0; i<partitions.size(); i++)
+        if (i != user_partition_index)
         {
             // re-key the broadcast key
             BroadcastKey bKey;
-            rekey_sgx_safe(&bKey, &(gpCiphers[p]), pubKey, msk);
+            rekey_sgx_safe(&bKey, &(partitions[i].ciphertext), pubKey, msk);
 
             // encrypt the new group key by broadcast key
-            sgx_random(16, gpKeys[p].iv);
-            sgx_aes_encrypt(group_key, 32, bKey, gpKeys[p].iv, gpKeys[p].encryptedKey);
+            sgx_random(16, partitions[i].encGroupKey.iv);
+            sgx_aes_encrypt(group_key, 32, bKey, partitions[i].encGroupKey.iv, partitions[i].encGroupKey.encryptedKey);
         }
-    }
 
-    // remove user from user partition
+    // for user partition, do an optimized remove in O(1)
     BroadcastKey user_partition_key;
-    remove_user_sgx_safe(&user_partition_key, &(gpCiphers[userPartition]),
+    remove_user_sgx_safe(&user_partition_key, &(partitions[user_partition_index].ciphertext),
         (char*)user_id.c_str(),
         pubKey, msk);
-    sgx_random(16, gpKeys[userPartition].iv);
+    sgx_random(16, partitions[user_partition_index].encGroupKey.iv);
     sgx_aes_encrypt(group_key, 32, user_partition_key,
-        gpKeys[userPartition].iv, gpKeys[userPartition].encryptedKey);
-
-    // add last member to the user partition
-    std::string last_user = members[members.size() - 1];
-    if (userPartition < totalPartitions)
+        partitions[user_partition_index].encGroupKey.iv, partitions[user_partition_index].encGroupKey.encryptedKey);
+    if (partitions[user_partition_index].members.size() == 1)
     {
-        // include last member in user partition
-        add_user_sgx_safe(pubKey, &(gpCiphers[userPartition]), msk, (char*)last_user.c_str());
-
-        // remove last member from last partition
-        BroadcastKey last_partition_key;
-        remove_user_sgx_safe(
-            &last_partition_key,
-            &(gpCiphers[totalPartitions - 1]),
-            (char*) last_user.c_str(),
-            pubKey, msk);
-        sgx_random(16, gpKeys[totalPartitions - 1].iv);
-        sgx_aes_encrypt(group_key, 32, last_partition_key,
-            gpKeys[totalPartitions - 1].iv, gpKeys[totalPartitions - 1].encryptedKey);
+        partitions[user_partition_index].members.clear();
     }
-
-    // change the members list
-    members[get_user_index(members, user_id)] = last_user;
-    members.pop_back();
-
-    // check if we need to get rid of last partition
-    if (members.size() % usersPerPartition == 0)
+    else
     {
-        gpKeys.pop_back();
-        gpCiphers.pop_back();
+        int usr_index = get_user_index(partitions[user_partition_index].members, user_id);
+        int last_index = partitions[user_partition_index].members.size() - 1;
+        partitions[user_partition_index].members[usr_index] = partitions[user_partition_index].members[last_index];
+        partitions[user_partition_index].members.pop_back();
     }
 }

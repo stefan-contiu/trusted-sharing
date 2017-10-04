@@ -33,6 +33,8 @@ class SpibbeApi : public AdminApi
         void AddUserToGroup(std::string groupName, std::string userName);
         void RemoveUserFromGroup(std::string groupName, std::string userName);
 
+        void SystemSetup();
+        void LoadSystem();
         PublicKey micro_get_pk() { return pk; }
         void micro_get_upk(std::string user_id, UserPrivateKey upk);
 };
@@ -67,12 +69,7 @@ class HybridUserApi : public UserApi
 };
 
 
-class Configuration
-{
-    public:
-        static int UsersPerPartition;
-        static std::string CurveFile;
-};
+
 
 // ADMIN_API_H
 #endif

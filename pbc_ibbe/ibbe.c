@@ -68,7 +68,7 @@ int setup_sgx_safe(PublicKey *puk, ShortPublicKey *spuk, MasterSecretKey *msk, i
         mpz_clear(n);
 
         puk->h = hRec;
-        puk->h_size = max_group_size + 2;
+        puk->h_size = max_group_size + 1;
         element_init_G1(puk->w, spuk->pairing);
         element_init_GT(puk->v, spuk->pairing);
         element_set(puk->w, w);

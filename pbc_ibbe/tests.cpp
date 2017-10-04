@@ -24,6 +24,7 @@ void generate_members(std::vector<std::string>& members, int start, int end)
  */
 void ftest_one_user(int argc, char** argv)
 {
+    /*
     printf("SP-IBBE FUNCTIONL TEST ftest_one_user ...");
 
     // system set-up
@@ -37,10 +38,9 @@ void ftest_one_user(int argc, char** argv)
     generate_members(members, 0, 1);
 
     // create group
-    std::vector<EncryptedGroupKey> gpKeys;
-    std::vector<Ciphertext> gpCiphers;
+    std::vector<SpibbePartition> partitions;
     sp_ibbe_create_group(
-        gpKeys, gpCiphers,
+        partitions,
         shortPubKey, msk,
         members,
         10);
@@ -59,7 +59,7 @@ void ftest_one_user(int argc, char** argv)
         members[0],
         members,
         10);
-
+*/
     // TODO : we can't properly check the result unless :
     //      1. the second line of sp_ibbe_create_group is uncommented
     //      2. the line bellow is uncommented
@@ -74,6 +74,7 @@ void ftest_one_user(int argc, char** argv)
  */
 void ftest_create_group_decrypt_all(int argc, char** argv, int g_size, int p_size)
 {
+    /*
     printf("SP-IBBE FUNCTIONL TEST create_group_decrypt_all ...");
 
     // system set-up
@@ -123,6 +124,8 @@ void ftest_create_group_decrypt_all(int argc, char** argv, int g_size, int p_siz
         }
     }
     printf("\033[32;1m TEST PASSED \033[0m\n");
+
+ */ 
 }
 
 
@@ -131,6 +134,7 @@ void ftest_create_group_decrypt_all(int argc, char** argv, int g_size, int p_siz
  */
 void ftest_add_users_decrypt_all(int argc, char** argv, int g_size, int p_size)
 {
+    /*
     printf("SP-IBBE FUNCTIONL TEST ftest_add_users_decrypt_all ...");
     // system set-up
     PublicKey pubKey;
@@ -191,13 +195,15 @@ void ftest_add_users_decrypt_all(int argc, char** argv, int g_size, int p_size)
         }
     }
     printf ("\033[32;1m TEST PASSED \033[0m\n");
-}
+
+ */ }
 
 /*
  * Test that incementaly removing users results in the same group key for the remaining users.
  */
 void ftest_remove_decrypt_all(int argc, char** argv, int g_size, int p_size)
 {
+    /*
     printf("SP-IBBE FUNCTIONL TEST ftest_remove_decrypt_all ...");
     
     PublicKey pubKey;
@@ -259,7 +265,8 @@ void ftest_remove_decrypt_all(int argc, char** argv, int g_size, int p_size)
             break;
     }
     printf ("\033[32;1m TEST PASSED \033[0m\n");
-}
+
+ */ }
 
 void admin_api(int g_size, int p_size)
 {
@@ -276,6 +283,14 @@ void admin_api(int g_size, int p_size)
 
 void micro_create_group(AdminApi* admin)
 {
+    // HACK
+    std::vector<std::string> members;
+    generate_members(members, 0, 10000);
+    admin->CreateGroup("pau_friends", members);
+
+    return;
+
+    // OLD CODE:
     int g_size = 16;
     int p_size = 2000;
     
@@ -384,4 +399,24 @@ void micro_decrypt_key(AdminApi* admin, UserApi* user)
         user->GetGroupKey("friends", &groupKey);
         g_size = g_size * 2;
     }
+}
+
+void test_admin_replay()
+{
+    // TODO : eventualy this method goes to tests.cpp
+    Configuration::UsersPerPartition = 2000;
+    Cloud* c = new DropboxCloud();
+    std::string a = "master";
+    std::string g = "jura";
+ 
+ 
+   SpibbeApi* admin = new SpibbeApi(a, c);
+
+
+    std::vector<std::string> members;
+    generate_members(members, 0, 13245);
+    
+    admin->CreateGroup(g, members);
+    admin->AddUserToGroup(g, "stefan");
+    admin->RemoveUserFromGroup(g, "stefan");
 }
