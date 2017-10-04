@@ -24,7 +24,6 @@ void test_admin_replay();
 void micro_create_group(AdminApi* adminApi);
 void micro_add_user(AdminApi* adminApi);
 void micro_remove_user(AdminApi* adminApi);
-void micro_decrypt_key(AdminApi* adminApi, UserApi* userApi);
 
 // TESTS_H
 #endif

@@ -1,5 +1,5 @@
-#include "ibbe.h"
-#include "spibbe.h"
+#include "sgx_ibbe.h"
+#include "sgx_spibbe.h"
 #include "tests.h"
 #include "admin_api.h"
 #include "hybrid_api.h"
@@ -270,6 +270,7 @@ void ftest_remove_decrypt_all(int argc, char** argv, int g_size, int p_size)
 
 void admin_api(int g_size, int p_size)
 {
+    /*
     Configuration::UsersPerPartition = p_size;
     SpibbeApi admin("master", new RedisCloud());
     
@@ -279,10 +280,13 @@ void admin_api(int g_size, int p_size)
     admin.CreateGroup("friends", members);
     //admin.AddUserToGroup("friends", "jim");
     //admin.RemoveUserFromGroup("friends", "bob");
+
+ */
 }
 
 void micro_create_group(AdminApi* admin)
 {
+    /*
     // HACK
     std::vector<std::string> members;
     generate_members(members, 0, 10000);
@@ -311,10 +315,12 @@ void micro_create_group(AdminApi* admin)
 
         g_size = g_size * 2;
     }
+     */
 }
 
 void micro_add_user(AdminApi* admin)
 {
+    /*
     int g_size = 16;
     int p_size = 2000;
     
@@ -344,10 +350,12 @@ void micro_add_user(AdminApi* admin)
 
         g_size = g_size * 2;
     }
+     */
 }
 
 void micro_remove_user(AdminApi* admin)
 {
+    /*
     int g_size = 16;
     int p_size = 2000;
     
@@ -372,33 +380,7 @@ void micro_remove_user(AdminApi* admin)
 
         g_size = g_size * 2;
     }
-}
-
-void micro_decrypt_key(AdminApi* admin, UserApi* user)
-{
-    int g_size = 16;
-    int p_size = 2000;
- 
-    for (int i=0; i<MICRO_POINTS; i++)
-    {
-        if (g_size > p_size)
-        {
-            Configuration::UsersPerPartition = p_size;
-        }
-        else
-        {
-            Configuration::UsersPerPartition = g_size;
-        }
-        
-        // generate a group of desired size
-        std::vector<std::string> members;
-        generate_members(members, 0, g_size);
-        admin->CreateGroup("friends", members);
-    
-        GroupKey groupKey;
-        user->GetGroupKey("friends", &groupKey);
-        g_size = g_size * 2;
-    }
+     */
 }
 
 void test_admin_replay()

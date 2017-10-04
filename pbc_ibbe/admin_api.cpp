@@ -1,5 +1,5 @@
 #include "admin_api.h"
-#include "spibbe.h"
+#include "sgx_spibbe.h"
 #include "serialization.h"
 #include "microbench.h"
 #include "admin_cache.h"
@@ -13,8 +13,8 @@ int Configuration::UsersPerPartition;
 
 SpibbeApi::SpibbeApi(std::string admin_name, Cloud* cloud)
 {
-    //SystemSetup();
-    LoadSystem();
+    SystemSetup();
+    //LoadSystem();
     this->cloud = cloud;
 }
 
@@ -185,58 +185,4 @@ void SpibbeApi::RemoveUserFromGroup(std::string groupName, std::string userName)
 void SpibbeApi::micro_get_upk(std::string user_id, UserPrivateKey upk)
 {
     extract_sgx_safe(this->spk, this->msk, upk, (char*) user_id.c_str());
-}
-
-
-/*
- * USER API ----------------------------------------------------------
- */
-SpibbeUserApi::SpibbeUserApi(std::string user_name, Cloud* cloud, SpibbeApi* admin)
-{
-    this->user_name = user_name;
-    this->cloud = cloud;
-    this->pk = admin->micro_get_pk();
-    admin->micro_get_upk(user_name, this->upk);
-}
-
-void SpibbeUserApi::GetGroupKey(std::string groupName, GroupKey* groupKey)
-{
-#ifdef MICRO_DECRYPT
-    struct timespec start, finish;
-    start_clock
-#endif     
-    // retreive data from cloud
-    std::string s_members = this->cloud->get_text(get_group_members_key(groupName));
-    std::string s_meta = this->cloud->get_text(get_group_meta_key(groupName));
-#ifdef MICRO_DECRYPT
-    end_clock(m0) 
-#endif 
-
-#ifdef MICRO_DECRYPT
-    start_clock
-#endif     
-    // deserialize
-    std::vector<std::string> members;
-    std::vector<EncryptedGroupKey> gpKeys;
-    std::vector<Ciphertext> gpCiphers;
-    deserialize_members(s_members, members);
-    deserialize_group_metadata(s_meta, gpKeys, gpCiphers, this->pk.pairing);
-#ifdef MICRO_REMOVE
-    end_clock(m1) 
-#endif
-
-#ifdef MICRO_DECRYPT
-    start_clock
-#endif         
-    // decrypt 
-    sp_ibbe_user_decrypt(groupKey, gpKeys, gpCiphers, 
-        this->pk,
-        this->upk,
-        this->user_name,
-        members, 
-        Configuration::UsersPerPartition);
-#ifdef MICRO_REMOVE
-    end_clock(m2)
-    printf("DECRYPT_KEY,%d,%f,%f,%f\n", members.size(), m0, m1, m2);
-#endif 
 }
