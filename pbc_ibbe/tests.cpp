@@ -20,6 +20,55 @@ void generate_members(std::vector<std::string>& members, int start, int end)
 }
 
 /*
+ * Test the SPIBBE methods at SGX level. No cloud involved. 
+ */
+void sgx_level_bvt(int argc, char** argv)
+{
+    printf("Testing SGX_LEVEL_BVT ...");
+    
+    //
+    int g_size = 1905;
+    int p_size = 200;
+    
+    // system set-up
+    PublicKey pubKey;
+    MasterSecretKey msk;
+    ShortPublicKey shortPubKey;
+    setup_sgx_safe(&pubKey, &shortPubKey, &msk,
+        p_size, argc, argv);
+
+    // generate mock members
+    std::vector<std::string> members;
+    generate_members(members, 0, g_size);
+
+    // create group
+    std::vector<SpibbePartition> partitions;
+    
+    // >>>>>>>> GO TO SGX ENCLAVE
+    // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    unsigned char* g_key = sp_ibbe_create_group(
+        partitions,
+        shortPubKey, msk,
+        members,
+        p_size);      
+    // >>>>>>>> RETURN FROM SGX ENCLAVE
+    // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+        
+    if (partitions.size() != 10)
+    {
+        printf("TEST FAILED !!!\n");
+        return;
+    }
+    if (partitions[9].members.size() != 105)
+    {
+        printf("TEST FAILED %d !!!\n", partitions[9].members.size());
+        return;
+    }
+    
+    printf("\033[32;1m TEST PASSED \033[0m\n");
+}
+
+/*
  * Test that the scheme works for a single user too, not only for groups.
  */
 void ftest_one_user(int argc, char** argv)

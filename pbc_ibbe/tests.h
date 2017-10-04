@@ -3,6 +3,12 @@
 
 #include "admin_api.h"
 
+/* 
+ * BASIC VALIDATION TESTS
+ */ 
+void sgx_level_bvt(int argc, char** argv);
+
+
 /*
  *   FUNCTIONAL TESTS
  */
@@ -16,9 +22,6 @@ void admin_api(int g_size, int p_size);
 
 void test_admin_replay();
 
-/*
- *   PERFORMANCE TESTS
- */
 
 // MICROBENCHMARKS
 void micro_create_group(AdminApi* adminApi);
