@@ -5,6 +5,7 @@
 #include <openssl/evp.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <cstdlib>
 
 unsigned char* gen_random_bytestream(int n)
 {
@@ -16,6 +17,15 @@ unsigned char* gen_random_bytestream(int n)
     }
     stream[n] = 0;
     return stream;
+}
+
+void sgx_random(int n, unsigned char b[])
+{
+    size_t i;
+    for (i = 0; i < n; i++)
+    {
+        b[i] = (unsigned char) (rand() % 255 + 1);
+    }
 }
 
 void sgx_aes_encrypt(
@@ -100,16 +110,4 @@ unsigned char* sgx_sha256(const unsigned char *d,
     unsigned char *md)
 {
     return SHA256(d, n, md);
-}
-
-int ecc_encryption(unsigned char* plaintext, int plaintext_length,
-    char* key, int key_length,
-    unsigned char* ciphertext)
-{
-}
-
-int ecc_decryption(unsigned char* ciphertext, int ciphertext_length,
-    char* key, int key_length,
-    unsigned char* plaintext)
-{
 }

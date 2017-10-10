@@ -17,6 +17,9 @@ static inline void print_hex(unsigned char *h, int l)
     printf("\n");
 }
 
+/* ------- RANDOM -------- */
+void sgx_random(int n, unsigned char b[]);
+
 /* ------- AES OPERATIONS ---------- */
 void sgx_aes_encrypt(unsigned char* plaintext,
     int plaintext_size,
@@ -41,16 +44,6 @@ int rsa_encryption(unsigned char* plaintext, int plaintext_length,
 int rsa_decryption(unsigned char* ciphertext, int ciphertext_length,
     char* key, int key_length,
     unsigned char* plaintext);
-
-/* ------- ECC OPERATIONS ---------- */
-int ecc_encryption(unsigned char* plaintext, int plaintext_length,
-    char* key, int key_length,
-    unsigned char* ciphertext);
-    
-int ecc_decryption(unsigned char* ciphertext, int ciphertext_length,
-    char* key, int key_length,
-    unsigned char* plaintext);
-
 
 #if defined (__cplusplus)
 }
