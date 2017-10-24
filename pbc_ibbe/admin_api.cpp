@@ -21,9 +21,15 @@ SpibbeApi::SpibbeApi(std::string admin_name, Cloud* cloud)
 
 void SpibbeApi::SystemSetup()
 {
-    char* s[2] = {"main\0", "a.param\0" };
+    // load paring file
+    char s[16384];
+    FILE *fp = fopen("a.param\0", "r");
+    size_t count = fread(s, 1, 16384, fp);
+    if (!count) pbc_die("input error");
+    fclose(fp);    
+    
     setup_sgx_safe(&(this->pk), &(this->spk), &(this->msk), Configuration::UsersPerPartition, 
-        2, s);
+        s, count);
 
     serialize_public_key_to_file(this->pk, "sys.pk");
     serialize_short_public_key_to_file(this->spk, "sys.spk");

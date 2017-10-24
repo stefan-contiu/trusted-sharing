@@ -38,8 +38,20 @@ void sgx_level_bvt(int argc, char** argv)
     PublicKey pubKey;
     MasterSecretKey msk;
     ShortPublicKey shortPubKey;
+    
+    // load paring file
+    char s[16384];
+    FILE *fp = stdin;
+    if (argc > 1) {
+    fp = fopen(argv[1], "r");
+    if (!fp) pbc_die("error opening %s", argv[1]);
+    }
+    size_t count = fread(s, 1, 16384, fp);
+    if (!count) pbc_die("input error");
+    fclose(fp);    
+
     setup_sgx_safe(&pubKey, &shortPubKey, &msk,
-        p_size, argc, argv);
+        p_size, s, count);
 
     // generate mock members
     std::vector<std::string> members;
