@@ -1,0 +1,6 @@
+1. To run SGX micro, use bin-sgx with commented methods.
+2. To run RSA micro, use bin-ntv (should me migrated from ibbe_old).
+3. Drop all csv files in the same folder as python charts scripts.
+4. Run charts.
+
+* Hack, for decrypt a preproc needs to be executed first.
